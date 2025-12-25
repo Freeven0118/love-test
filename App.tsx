@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import { QUESTIONS, OPTIONS, CATEGORY_INFO, PERSONAS, EXPERT_CONFIG, IMAGE_PROMPTS } from './constants';
+import { QUESTIONS, OPTIONS, CATEGORY_INFO, PERSONAS, EXPERT_CONFIG, CATEGORY_IMAGES } from './constants';
 import { Category } from './types';
 
 // 定義 AI 回傳的報告結構
@@ -15,14 +15,6 @@ interface AiReport {
   mindsetAnalysis: string; 
   coachGeneralAdvice: string; 
 }
-
-// 定義四大分類的靜態情境圖 (取代 AI 生成，解決 Quota 問題)
-const CATEGORY_IMAGES: Record<Category, string> = {
-  '形象外表': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=2787&auto=format&fit=crop', // 質感男性肖像
-  '社群形象': 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=2800&auto=format&fit=crop', // 社群媒體/手機情境
-  '行動與互動': 'https://images.unsplash.com/photo-1517849845537-4d257902454a?q=80&w=2800&auto=format&fit=crop', // 餐廳約會/社交氛圍
-  '心態與習慣': 'https://images.unsplash.com/photo-1499209974431-2761e252375a?q=80&w=2800&auto=format&fit=crop', // 晨曦/思考/心態
-};
 
 const App: React.FC = () => {
   // 狀態管理
@@ -163,22 +155,23 @@ const App: React.FC = () => {
             必須回傳的 JSON 結構範本：
             {
               "selectedPersonaId": "從 [charmer, statue, hustler, neighbor, sage, pioneer] 中選一個最貼切的 ID",
-              "personaExplanation": "解釋為何選這個人格 (約 100 字)",
+              "personaExplanation": "根據他的具體作答內容，深度分析為什麼他符合這個人格原型 (約 100-150 字，必須客製化分析，嚴禁只抄寫人格定義)",
               "personaOverview": "一句話總結他的現狀",
               "appearanceAnalysis": "針對形象外表的具體分析與建議 (約 50 字)",
               "socialAnalysis": "針對社群形象的具體分析與建議 (約 50 字)",
               "interactionAnalysis": "針對行動與互動的具體分析與建議 (約 50 字)",
               "mindsetAnalysis": "針對心態與習慣的具體分析與建議 (約 50 字)",
-              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (約 100-150 字)"
+              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (約 250-350 字，請務必分段，適度換行)"
             }
 
             關於「coachGeneralAdvice」（教練總結）的撰寫風格嚴格要求：
             1. **戰略大於執行**：嚴格禁止提供瑣碎的「具體執行事項」（如：去剪頭髮、買保養品、多參加活動、每天發文）。這些瑣碎的執行細節留給課程去教。你要給的是「宏觀戰略」與「核心盲點」。
             2. **直擊核心問題**：告訴他「為什麼」他會卡住？是因為太愛惜羽毛？是因為努力錯方向？還是心態太軟弱？
             3. **語氣口吻**：
-               - **嚴禁使用學術名詞**、論文語氣或生硬的翻譯腔。
-               - 要像一位**有經驗的兄長或軍師**，坐在咖啡廳對面，嚴肅但真誠地看著他，用**最白話、最一針見血**的方式點醒他。
-               - 語氣要有威嚴與洞察力，不要客套的鼓勵，要真實的點評。
+               - 要像一位**有經驗且溫暖的兄長**，坐在咖啡廳對面，語氣**平穩、堅定但帶有溫度**。
+               - 雖然要點出盲點，但**不要過度攻擊或嘲諷**（攻擊性收斂 15%），重點在於「引導」與「建設性」。
+               - 用**最白話、好懂**的方式溝通。
+               - **排版要求**：請在不同觀點或段落間，使用 \`\\n\` 進行明確換行，讓文字不要擠成一坨，方便閱讀。
 
             關於 Persona 選擇規則：
             - 若總分 > 38 且各維度均衡，selectedPersonaId 必須是 'charmer'。
@@ -498,9 +491,14 @@ const App: React.FC = () => {
                     <h3 className="text-2xl font-black text-amber-400 tracking-tight">教練總結</h3>
                   </div>
                   
-                  <p className="text-lg md:text-xl leading-relaxed font-medium text-slate-200 opacity-95 text-justify">
-                    {aiAnalysis.coachGeneralAdvice}
-                  </p>
+                  {/* 使用 map 渲染分段的文字，解決文字擠在一起的問題 */}
+                  <div className="space-y-4">
+                    {aiAnalysis.coachGeneralAdvice.split('\n').filter(line => line.trim() !== '').map((line, idx) => (
+                      <p key={idx} className="text-lg md:text-xl leading-relaxed font-medium text-slate-200 opacity-95 text-justify">
+                        {line}
+                      </p>
+                    ))}
+                  </div>
 
                   <div className="w-full h-px bg-slate-700 my-4"></div>
 
