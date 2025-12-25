@@ -61,11 +61,11 @@ const App: React.FC = () => {
         config: { imageConfig: { aspectRatio: "16:9" } },
       });
       
-      const parts = response.candidates?.[0]?.content?.parts;
+      const parts = response?.candidates?.[0]?.content?.parts;
       if (parts) {
         for (const part of parts) {
-          if (part.inlineData && part.inlineData.data) {
-            setImagesCache(prev => ({ ...prev, [index]: `data:image/png;base64,${part.inlineData.data}` }));
+          if (part.inlineData?.data) {
+            setImagesCache(prev => ({ ...prev, [index]: `data:image/png;base64,${part.inlineData!.data}` }));
             break;
           }
         }
