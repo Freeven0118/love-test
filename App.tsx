@@ -205,7 +205,7 @@ const App: React.FC = () => {
               "socialAnalysis": "針對社群形象的具體分析與建議 (約 50 字)",
               "interactionAnalysis": "針對行動與互動的具體分析與建議 (約 50 字)",
               "mindsetAnalysis": "針對心態與習慣的具體分析與建議 (約 50 字)",
-              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (直白、專業，約 100 字)"
+              "coachGeneralAdvice": "教練的總結戰略建議 (直白、專業，約 100 字)"
             }
 
             重要規則：
@@ -426,9 +426,30 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {step === 'diagnosing' && (
+        <div className="flex-1 flex flex-col items-center justify-center w-full space-y-12 animate-fade-in text-center px-4">
+          <div className="relative">
+            <div className="w-32 h-32 border-8 border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center text-2xl font-black text-slate-800">{Math.floor(fakeProgress)}%</div>
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">AI 診斷引擎正在啟動</h2>
+            <div className="flex flex-col space-y-2 text-slate-500 font-bold">
+              <span className={fakeProgress > 15 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 正在分析你的作答細節...</span>
+              <span className={fakeProgress > 45 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 比對社交成功案例...</span>
+              <span className={fakeProgress > 80 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 正在生成專屬建議...</span>
+            </div>
+          </div>
+          <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden shadow-inner">
+            <div className="h-full bg-blue-600 transition-all duration-300 ease-out" style={{ width: `${fakeProgress}%` }}></div>
+          </div>
+          <p className="text-slate-400 font-medium italic">「魅力不是天生，而是可以被設計的」</p>
+        </div>
+      )}
+
       {step === 'result' && localSummary && aiAnalysis && (
         <div className="w-full space-y-10 py-8 animate-fade-in px-2">
-          {/* 1. 人格卡片區塊 */}
+          {/* 人格卡片區塊 */}
           <div className="bg-white rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100">
             <div className="relative aspect-[3/2] bg-gray-50 flex items-center justify-center">
               <img src={activePersona.imageUrl} alt={activePersona.title} className="w-full h-full object-contain p-6" />
@@ -453,17 +474,20 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* 2. 數據雷達圖區塊 (移到這裡) */}
-          <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-50 text-center">
-            <div className="text-3xl md:text-4xl font-black text-slate-800 mb-8">總體魅力：<span className="text-blue-600">{localSummary.totalScore}</span> <span className="text-slate-300 text-lg">/ 48</span></div>
-            <div className="h-[20rem] md:h-[24rem] mb-6"><canvas ref={radarChartRef}></canvas></div>
+          {/* 教練戰略總結區塊 (NEW) */}
+          <div className="bg-slate-900 text-white p-8 md:p-10 rounded-[3rem] shadow-xl space-y-4 border border-slate-800">
+            <div className="flex items-center space-x-3 mb-2">
+              <span className="text-3xl">💡</span>
+              <h3 className="text-2xl font-black text-amber-400 tracking-tight">教練戰略總結</h3>
+            </div>
+            <p className="text-lg md:text-xl leading-relaxed font-medium text-slate-100 opacity-95">{aiAnalysis.coachGeneralAdvice}</p>
           </div>
 
-          {/* 3. 四大維度深度診斷區塊 */}
+          {/* 四大維度深度診斷區塊 (NEW) */}
           <div className="grid grid-cols-1 gap-6">
              <div className="text-center py-4">
                 <h3 className="text-2xl font-black text-slate-900 tracking-tighter">四大屬性深度剖析</h3>
-                <p className="text-slate-400 font-bold">基於你的回答細節生成的專屬分析</p>
+                <p className="text-slate-400 font-bold">由 AI 針對你的回答細節生成的專屬建議</p>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {localSummary.summary.map((item) => (
@@ -483,7 +507,12 @@ const App: React.FC = () => {
              </div>
           </div>
 
-          {/* 4. 教練總結與 CTA 區塊 (重構為無縫長卡片) */}
+          {/* 數據雷達圖區塊 */}
+          <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-50 text-center">
+            <div className="text-3xl md:text-4xl font-black text-slate-800 mb-8">總體魅力：<span className="text-blue-600">{localSummary.totalScore}</span> <span className="text-slate-300 text-lg">/ 48</span></div>
+            <div className="h-[20rem] md:h-[24rem] mb-6"><canvas ref={radarChartRef}></canvas></div>
+          </div>
+
           {activePersona.id === 'charmer' ? (
             <div className="bg-gradient-to-br from-slate-900 to-black rounded-[3.5rem] shadow-2xl p-10 md:p-14 text-center space-y-8 animate-fade-in border border-slate-800">
               <div className="text-6xl md:text-8xl">🏆</div>
@@ -491,34 +520,12 @@ const App: React.FC = () => {
               <p className="text-slate-300 text-xl md:text-2xl font-bold">教練對你唯一的建議是：好好善用這份天賦。祝你一帆風順！</p>
             </div>
           ) : (
-            <div className="rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col bg-white">
-              {/* 上半部：圖片 */}
-              <div className="w-full relative">
-                <img src={EXPERT_CONFIG.imageUrl} alt="Expert Coach" className="w-full h-auto block object-cover" />
-              </div>
-              
-              {/* 下半部：無縫銜接的深色文字區塊 */}
-              <div className="bg-slate-900 p-8 md:p-12 space-y-8 flex-1">
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-3xl">💡</span>
-                    <h3 className="text-2xl font-black text-amber-400 tracking-tight">教練總結</h3>
-                  </div>
-                  
-                  {/* AI 建議 */}
-                  <p className="text-lg md:text-xl leading-relaxed font-medium text-slate-200 opacity-95 text-justify">
-                    {aiAnalysis.coachGeneralAdvice}
-                  </p>
-
-                  {/* 課程銷售文案 */}
-                  <p className="text-lg md:text-xl leading-relaxed font-bold text-white text-justify">
-                    {EXPERT_CONFIG.description}
-                  </p>
-                </div>
-
-                <button onClick={() => window.open('https://www.menspalais.com', '_blank')} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-6 rounded-[2rem] text-xl md:text-2xl shadow-xl shadow-blue-900/50 flex items-center justify-center space-x-3 transition transform active:scale-95 mt-4">
+            <div className="bg-white rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100">
+              <img src={EXPERT_CONFIG.imageUrl} alt="Expert" className="w-full h-auto block" />
+              <div className="p-8 md:p-14 space-y-12">
+                <button onClick={() => window.open('https://www.menspalais.com', '_blank')} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-8 rounded-[2.5rem] text-2xl md:text-3xl shadow-2xl shadow-blue-200 flex items-center justify-center space-x-4 transition transform active:scale-95">
                   <span>{EXPERT_CONFIG.ctaButtonText}</span>
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
                 </button>
               </div>
             </div>
@@ -530,8 +537,25 @@ const App: React.FC = () => {
 
       <footer className="w-full text-center py-10 text-slate-400 text-[12px] px-6 border-t border-slate-100 mt-auto space-y-2 bg-slate-50">
         <p className="font-bold">© 男性形象教練 彭邦典 版權所有</p>
-        <p>本測驗由 AI 輔助生成，不涉及心理或精神診斷，測驗結果僅供社交魅力提升參考。</p>
-    
+        <p>本測驗深度診斷由 AI 輔助生成，測驗結果僅供社交魅力提升參考。</p>
+        
+        {/* DEBUG PANEL - 顯示錯誤訊息 */}
+        <div className="inline-block mt-4 px-4 py-3 bg-white border border-slate-200 rounded text-xs font-mono text-left shadow-sm max-w-full overflow-hidden">
+           <p className={`font-bold ${keyStatus.startsWith('MISSING') ? 'text-red-600' : 'text-green-600'}`}>
+             API Key: {keyStatus}
+           </p>
+           {/* 紅色錯誤顯示區 */}
+           {lastError && (
+             <div className="mt-2 p-2 bg-red-50 text-red-600 border border-red-100 rounded break-all">
+               <strong>GOOGLE API ERROR:</strong> <br/>
+               {lastError}
+             </div>
+           )}
+           {lastError.includes('referer') && (
+             <p className="text-slate-500 mt-2 italic">
+               Hint: Your Google Key restricts domains. Add <b>https://love-test-*.vercel.app/*</b> to your Google Cloud Console "Website Restrictions".
+             </p>
+           )}
         </div>
       </footer>
     </div>
