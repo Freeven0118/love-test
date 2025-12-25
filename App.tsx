@@ -205,7 +205,7 @@ const App: React.FC = () => {
               "socialAnalysis": "針對社群形象的具體分析與建議 (約 50 字)",
               "interactionAnalysis": "針對行動與互動的具體分析與建議 (約 50 字)",
               "mindsetAnalysis": "針對心態與習慣的具體分析與建議 (約 50 字)",
-              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (直白、專業，約 100 字)"
+              "coachGeneralAdvice": "教練的總結戰略建議 (直白、專業，約 100 字)"
             }
 
             重要規則：
@@ -436,8 +436,8 @@ const App: React.FC = () => {
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">AI 診斷引擎正在啟動</h2>
             <div className="flex flex-col space-y-2 text-slate-500 font-bold">
               <span className={fakeProgress > 15 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 正在分析你的作答細節...</span>
-              <span className={fakeProgress > 45 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 比對 10,000+ 社交成功案例...</span>
-              <span className={fakeProgress > 80 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 彭邦典教練正在生成專屬建議...</span>
+              <span className={fakeProgress > 45 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 比對社交成功案例...</span>
+              <span className={fakeProgress > 80 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 正在生成專屬建議...</span>
             </div>
           </div>
           <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden shadow-inner">
@@ -478,7 +478,7 @@ const App: React.FC = () => {
           <div className="bg-slate-900 text-white p-8 md:p-10 rounded-[3rem] shadow-xl space-y-4 border border-slate-800">
             <div className="flex items-center space-x-3 mb-2">
               <span className="text-3xl">💡</span>
-              <h3 className="text-2xl font-black text-amber-400 tracking-tight">彭邦典教練戰略總結</h3>
+              <h3 className="text-2xl font-black text-amber-400 tracking-tight">教練戰略總結</h3>
             </div>
             <p className="text-lg md:text-xl leading-relaxed font-medium text-slate-100 opacity-95">{aiAnalysis.coachGeneralAdvice}</p>
           </div>
@@ -517,7 +517,7 @@ const App: React.FC = () => {
             <div className="bg-gradient-to-br from-slate-900 to-black rounded-[3.5rem] shadow-2xl p-10 md:p-14 text-center space-y-8 animate-fade-in border border-slate-800">
               <div className="text-6xl md:text-8xl">🏆</div>
               <h4 className="text-3xl md:text-4xl font-black text-white">你已是頂級魅力家</h4>
-              <p className="text-slate-300 text-xl md:text-2xl font-bold">彭教練對你唯一的建議是：好好善用這份天賦。祝你一帆風順！</p>
+              <p className="text-slate-300 text-xl md:text-2xl font-bold">教練對你唯一的建議是：好好善用這份天賦。祝你一帆風順！</p>
             </div>
           ) : (
             <div className="bg-white rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100">
