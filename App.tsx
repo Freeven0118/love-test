@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { QUESTIONS, OPTIONS, CATEGORY_INFO, PERSONAS, EXPERT_CONFIG, IMAGE_PROMPTS } from './constants';
 import { Category } from './types';
 
@@ -30,7 +29,9 @@ const App: React.FC = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [fakeProgress, setFakeProgress] = useState(0);
 
+  // Refs
   const loadingRef = useRef<Record<number, boolean>>({});
+  const aiFetchingRef = useRef(false); // 防止重複呼叫 AI
   const radarChartRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstance = useRef<any>(null);
 
@@ -56,8 +57,9 @@ const App: React.FC = () => {
     setImagesCache({});
     setAiAnalysis(null);
     setFakeProgress(0);
-    setLastError(''); // 清除錯誤紀錄
+    setLastError('');
     loadingRef.current = {};
+    aiFetchingRef.current = false;
   };
 
   const generateImageForIndex = async (index: number, isPriority: boolean = false) => {
@@ -67,16 +69,14 @@ const App: React.FC = () => {
 
     try {
       const apiKey = process.env.API_KEY;
-      if (!apiKey || apiKey === "undefined" || apiKey === "") {
-         return;
-      }
+      if (!apiKey || apiKey === "undefined" || apiKey === "") return;
 
       const ai = new GoogleGenAI({ apiKey: apiKey });
       const category = QUESTIONS[index].category;
       const basePrompt = IMAGE_PROMPTS[category] || `Professional photography related to ${QUESTIONS[index].text}`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-2.5-flash-image',
         contents: { parts: [{ text: basePrompt }] },
         config: { imageConfig: { aspectRatio: "16:9" } },
       });
@@ -92,7 +92,6 @@ const App: React.FC = () => {
       }
     } catch (e: any) { 
       console.error("Image generation error:", e);
-      // 圖片失敗不影響流程，但紀錄一下
       setLastError(`Img Error: ${e.message}`);
     } finally {
       loadingRef.current[index] = false;
@@ -122,6 +121,7 @@ const App: React.FC = () => {
   }, [step]);
 
   useEffect(() => {
+    // 只有當 aiAnalysis 真的有值時，才跳轉到結果頁
     if (step === 'diagnosing' && aiAnalysis) {
       setFakeProgress(100);
       const timer = setTimeout(() => {
@@ -149,27 +149,29 @@ const App: React.FC = () => {
     return { summary, totalScore };
   }, [step, answers]);
 
+  // AI 分析主邏輯
   useEffect(() => {
-    if (step === 'diagnosing' && localSummary && !aiAnalysis && !isAiLoading) {
+    if (step === 'diagnosing' && localSummary && !aiFetchingRef.current) {
       const fetchAiAnalysis = async () => {
+        aiFetchingRef.current = true;
         setIsAiLoading(true);
-        setLastError(''); // Clear previous errors
+        setLastError(''); 
 
-        // 1. 檢查 API Key 是否存在
+        const fallbackAnalysis: AiReport = {
+          selectedPersonaId: localSummary.totalScore > 36 ? 'charmer' : 'neighbor',
+          personaExplanation: "⚠️ AI 連線忙碌中，這是根據您的分數生成的基礎報告。",
+          personaOverview: "您的魅力潛力巨大，建議重新整理頁面再次進行深度分析。",
+          appearanceAnalysis: "保持整潔，找出適合自己的風格是第一步。",
+          socialAnalysis: "社群媒體是您的名片，試著多展現生活感。",
+          interactionAnalysis: "主動一點，故事就會開始。",
+          mindsetAnalysis: "心態決定高度，保持自信。",
+          coachGeneralAdvice: "系統暫時無法連線至 AI 大腦，請檢查下方的錯誤訊息，或稍後再試。"
+        };
+
         const apiKey = process.env.API_KEY;
         if (!apiKey || apiKey === "undefined" || apiKey.length < 10) {
-          const msg = "API Key MISSING in Runtime.";
-          setLastError(msg);
-          setAiAnalysis({
-            selectedPersonaId: localSummary.totalScore > 36 ? 'charmer' : 'neighbor',
-            personaExplanation: "⚠️ 錯誤：找不到 API Key。請檢查 Vercel 環境變數。",
-            personaOverview: "無法連線至 AI 大腦。",
-            appearanceAnalysis: "請檢查 Vercel 設定。",
-            socialAnalysis: "請檢查 Vercel 設定。",
-            interactionAnalysis: "請檢查 Vercel 設定。",
-            mindsetAnalysis: "請檢查 Vercel 設定。",
-            coachGeneralAdvice: "設定完成後請重新整理頁面。"
-          });
+          setLastError("API Key MISSING or Invalid.");
+          setAiAnalysis(fallbackAnalysis);
           setIsAiLoading(false);
           return;
         }
@@ -191,12 +193,23 @@ const App: React.FC = () => {
             3. 具體作答：${JSON.stringify(detailedData)}
 
             任務指令：
-            1. 人格選定與解析：從以下清單中選出一個最貼切的人格 ID [charmer, statue, hustler, neighbor, sage, pioneer]。
-               - 重要規則：若總分很高（例如 38 分以上）且各維度表現均衡（綠燈多），請務必判定為 'charmer' (天生魅力家)。
-               - 解釋為何選它，字數約 100 字。
-            2. 維度診斷：分析其形象、社群、互動、心態的現況。
-            3. 教練戰略實踐方案：直接輸出純文字，不要有任何修飾符號。
-            語氣：有威嚴、專業、直白。
+            請分析以上數據，並嚴格依照下方的 JSON 格式回傳報告。不要包含任何 Markdown 格式標記（如 \`\`\`json）。
+
+            必須回傳的 JSON 結構範本：
+            {
+              "selectedPersonaId": "從 [charmer, statue, hustler, neighbor, sage, pioneer] 中選一個最貼切的 ID",
+              "personaExplanation": "解釋為何選這個人格 (約 100 字)",
+              "personaOverview": "一句話總結他的現狀",
+              "appearanceAnalysis": "針對形象外表的具體分析與建議",
+              "socialAnalysis": "針對社群形象的具體分析與建議",
+              "interactionAnalysis": "針對行動與互動的具體分析與建議",
+              "mindsetAnalysis": "針對心態與習慣的具體分析與建議",
+              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (直白、專業)"
+            }
+
+            重要規則：
+            - 若總分 > 38 且各維度均衡，selectedPersonaId 必須是 'charmer'。
+            - 語氣：有威嚴、專業、直白。
           `;
 
           const response = await ai.models.generateContent({
@@ -204,47 +217,42 @@ const App: React.FC = () => {
             contents: [{ parts: [{ text: prompt }] }],
             config: {
               responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  selectedPersonaId: { type: Type.STRING },
-                  personaExplanation: { type: Type.STRING },
-                  personaOverview: { type: Type.STRING },
-                  appearanceAnalysis: { type: Type.STRING },
-                  socialAnalysis: { type: Type.STRING },
-                  interactionAnalysis: { type: Type.STRING },
-                  mindsetAnalysis: { type: Type.STRING },
-                  coachGeneralAdvice: { type: Type.STRING }
-                },
-                required: ["selectedPersonaId", "personaExplanation", "personaOverview", "appearanceAnalysis", "socialAnalysis", "interactionAnalysis", "mindsetAnalysis", "coachGeneralAdvice"]
-              }
+              // 改用純字串設定 Safety Settings，避免 Enum Import 問題
+              safetySettings: [
+                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+              ]
             }
           });
 
-          const jsonText = response.text || "{}";
-          const json = JSON.parse(jsonText);
+          const jsonText = response.text;
+          console.log("Raw AI Response:", jsonText); 
+
+          if (!jsonText) {
+            throw new Error("Empty response from AI model");
+          }
+
+          let json;
+          try {
+             const cleanText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+             json = JSON.parse(cleanText);
+          } catch (e) {
+             throw new Error("Invalid JSON format");
+          }
+
+          if (!json.selectedPersonaId) {
+             throw new Error("Missing fields in AI response");
+          }
+
           setAiAnalysis(json);
         } catch (e: any) {
           console.error("AI Analysis Error:", e);
-          
-          // 捕捉詳細錯誤訊息
           let detailedError = e.message || e.toString();
-          if (detailedError.includes('403')) detailedError += " (Forbidden: Check API Key restrictions)";
-          if (detailedError.includes('400')) detailedError += " (Bad Request: Check API Key validity)";
           setLastError(detailedError);
-
-          let friendlyMsg = "⚠️ AI 連線發生錯誤，請查看頁面下方的紅色錯誤訊息。";
-          
-          setAiAnalysis({
-            selectedPersonaId: localSummary.totalScore > 36 ? 'charmer' : 'neighbor',
-            personaExplanation: friendlyMsg,
-            personaOverview: "AI 連線暫時中斷。",
-            appearanceAnalysis: "建議您稍後再試。",
-            socialAnalysis: "建議您稍後再試。",
-            interactionAnalysis: "建議您稍後再試。",
-            mindsetAnalysis: "建議您稍後再試。",
-            coachGeneralAdvice: "若持續發生，請檢查網路連線。"
-          });
+          // 發生任何錯誤，強制設定 Fallback 數據，確保頁面不會空白
+          setAiAnalysis(fallbackAnalysis);
         } finally {
           setIsAiLoading(false);
         }
@@ -426,7 +434,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {step === 'result' && localSummary && (
+      {step === 'result' && localSummary && aiAnalysis && (
         <div className="w-full space-y-10 py-8 animate-fade-in px-2">
           <div className="bg-white rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100">
             <div className="relative aspect-[3/2] bg-gray-50 flex items-center justify-center">
