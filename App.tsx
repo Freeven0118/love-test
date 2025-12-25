@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { QUESTIONS, OPTIONS, CATEGORY_INFO, PERSONAS, EXPERT_CONFIG, CATEGORY_IMAGES } from './constants';
 import { Category } from './types';
 
@@ -23,8 +23,6 @@ const App: React.FC = () => {
   const [isIntroMode, setIsIntroMode] = useState(true);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   
-  // 移除 Image Generation 相關狀態
-  
   const [aiAnalysis, setAiAnalysis] = useState<AiReport | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [fakeProgress, setFakeProgress] = useState(0);
@@ -34,7 +32,7 @@ const App: React.FC = () => {
   const radarChartRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstance = useRef<any>(null);
 
-  // 用於 Debug 的狀態
+  // 用於 Debug 的狀態 (僅用於檢查金鑰)
   const [keyStatus, setKeyStatus] = useState<string>('Checking...');
   const [lastError, setLastError] = useState<string>('');
 
@@ -59,17 +57,13 @@ const App: React.FC = () => {
     aiFetchingRef.current = false;
   };
 
-  // 移除 generateImageForIndex 函式與相關 useEffect
-
   useEffect(() => {
     let timer: number;
     if (step === 'diagnosing') {
-      // 重置進度確保動畫從頭開始
       setFakeProgress(1);
       timer = window.setInterval(() => {
         setFakeProgress(prev => {
           if (prev >= 98) return prev;
-          // 稍微加快進度條速度，讓使用者更有感 (每 100ms + 0.8%)
           return prev + 0.8; 
         });
       }, 100);
@@ -78,7 +72,6 @@ const App: React.FC = () => {
   }, [step]);
 
   useEffect(() => {
-    // 只有當 aiAnalysis 真的有值時，才跳轉到結果頁
     if (step === 'diagnosing' && aiAnalysis) {
       setFakeProgress(100);
       const timer = setTimeout(() => {
@@ -134,6 +127,7 @@ const App: React.FC = () => {
         }
 
         try {
+          // Fix: Always use a named parameter when initializing GoogleGenAI
           const ai = new GoogleGenAI({ apiKey: apiKey });
           const detailedData = QUESTIONS.map(q => ({
             question: q.text,
@@ -141,82 +135,60 @@ const App: React.FC = () => {
             answer: OPTIONS.find(o => o.value === answers[q.id])?.label || '未答'
           }));
 
-          const prompt = `
-            你現在是專業形象教練「彭邦典」。這是一位 25-35 歲男性的「脫單力檢核」測驗結果深度報告。
-            
-            數據：
-            1. 總分：${localSummary.totalScore}/48
-            2. 各維度分數：${JSON.stringify(localSummary.summary.map(s => ({ cat: s.category, score: s.score })))}
-            3. 具體作答：${JSON.stringify(detailedData)}
+          const prompt = `測驗數據細節：
+            總分：${localSummary.totalScore}/48
+            分項分數：${JSON.stringify(localSummary.summary.map(s => ({ cat: s.category, score: s.score })))}
+            原始作答：${JSON.stringify(detailedData)}`;
 
-            任務指令：
-            請分析以上數據，並嚴格依照下方的 JSON 格式回傳報告。不要包含任何 Markdown 格式標記（如 \`\`\`json）。
-
-            必須回傳的 JSON 結構範本：
-            {
-              "selectedPersonaId": "從 [charmer, statue, hustler, neighbor, sage, pioneer] 中選一個最貼切的 ID",
-              "personaExplanation": "根據他的具體作答內容，深度分析為什麼他符合這個人格原型 (約 100-150 字，必須客製化分析，嚴禁只抄寫人格定義)",
-              "personaOverview": "一句話總結他的現狀",
-              "appearanceAnalysis": "針對形象外表的具體分析與建議 (約 50 字)",
-              "socialAnalysis": "針對社群形象的具體分析與建議 (約 50 字)",
-              "interactionAnalysis": "針對行動與互動的具體分析與建議 (約 50 字)",
-              "mindsetAnalysis": "針對心態與習慣的具體分析與建議 (約 50 字)",
-              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (約 250-350 字，請務必分段，適度換行)"
-            }
-
-            關於「coachGeneralAdvice」（教練總結）的撰寫風格嚴格要求：
-            1. **戰略大於執行**：嚴格禁止提供瑣碎的「具體執行事項」（如：去剪頭髮、買保養品、多參加活動、每天發文）。這些瑣碎的執行細節留給課程去教。你要給的是「宏觀戰略」與「核心盲點」。
-            2. **直擊核心問題**：告訴他「為什麼」他會卡住？是因為太愛惜羽毛？是因為努力錯方向？還是心態太軟弱？
-            3. **語氣口吻**：
-               - 要像一位**有經驗且溫暖的兄長**，坐在咖啡廳對面，語氣**平穩、堅定但帶有溫度**。
-               - 雖然要點出盲點，但**不要過度攻擊或嘲諷**（攻擊性收斂 15%），重點在於「引導」與「建設性」。
-               - 用**最白話、好懂**的方式溝通。
-               - **排版要求**：請在不同觀點或段落間，使用 \`\\n\` 進行明確換行，讓文字不要擠成一坨，方便閱讀。
-
-            關於 Persona 選擇規則：
-            - 若總分 > 38 且各維度均衡，selectedPersonaId 必須是 'charmer'。
-          `;
-
+          // Fix: Use gemini-3-pro-preview for complex reasoning tasks
+          // Fix: Move system instructions to systemInstruction parameter in config
+          // Fix: Use responseSchema to ensure valid JSON output
           const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview", 
-            contents: [{ parts: [{ text: prompt }] }],
+            model: "gemini-3-pro-preview", 
+            contents: prompt,
             config: {
+              systemInstruction: `你現在是專業形象教練「彭邦典」。這是一位 25-35 歲男性的「脫單力檢核」測驗結果深度報告。
+              任務指令：分析以上數據並回傳 JSON 格式報告。
+              人格原型 ID 必須從 [charmer, statue, hustler, neighbor, sage, pioneer] 中選取。
+              關於「coachGeneralAdvice」（教練總結）的撰寫風格：
+              1. 戰略大於執行：提供宏觀戰略與核心盲點。
+              2. 直擊問題：告訴他為什麼會卡住？
+              3. 語氣像有經驗且溫暖的兄長，平穩、堅定且有溫度。
+              4. 排版要求：請在不同觀點間使用 \\n 進行換行。`,
               responseMimeType: "application/json",
-              // 改用純字串設定 Safety Settings，避免 Enum Import 問題
-              safetySettings: [
-                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-              ]
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  selectedPersonaId: { type: Type.STRING },
+                  personaExplanation: { type: Type.STRING },
+                  personaOverview: { type: Type.STRING },
+                  appearanceAnalysis: { type: Type.STRING },
+                  socialAnalysis: { type: Type.STRING },
+                  interactionAnalysis: { type: Type.STRING },
+                  mindsetAnalysis: { type: Type.STRING },
+                  coachGeneralAdvice: { type: Type.STRING }
+                },
+                required: ["selectedPersonaId", "personaExplanation", "personaOverview", "appearanceAnalysis", "socialAnalysis", "interactionAnalysis", "mindsetAnalysis", "coachGeneralAdvice"]
+              }
             }
           });
 
+          // Fix: Access response.text property directly (not as a method)
           const jsonText = response.text;
-          console.log("Raw AI Response:", jsonText); 
-
-          if (!jsonText) {
-            throw new Error("Empty response from AI model");
-          }
+          if (!jsonText) throw new Error("Empty response from AI model");
 
           let json;
           try {
-             const cleanText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
-             json = JSON.parse(cleanText);
+             json = JSON.parse(jsonText.trim());
           } catch (e) {
              throw new Error("Invalid JSON format");
           }
 
-          if (!json.selectedPersonaId) {
-             throw new Error("Missing fields in AI response");
-          }
-
+          if (!json.selectedPersonaId) throw new Error("Missing fields in AI response");
           setAiAnalysis(json);
         } catch (e: any) {
           console.error("AI Analysis Error:", e);
-          let detailedError = e.message || e.toString();
-          setLastError(detailedError);
-          // 發生任何錯誤，強制設定 Fallback 數據，確保頁面不會空白
+          setLastError(e.message || e.toString());
           setAiAnalysis(fallbackAnalysis);
         } finally {
           setIsAiLoading(false);
@@ -261,7 +233,13 @@ const App: React.FC = () => {
     }
   }, [step, localSummary]);
 
-  const handleAnswer = (val: number) => setAnswers(prev => ({ ...prev, [QUESTIONS[currentIdx].id]: val }));
+  const handleAnswer = (val: number) => {
+    setAnswers(prev => ({ ...prev, [QUESTIONS[currentIdx].id]: val }));
+    // 點選選項後自動進入下一題
+    setTimeout(() => {
+      nextStep();
+    }, 150);
+  };
   
   const nextStep = () => {
     if (isIntroMode) { setIsIntroMode(false); return; }
@@ -292,7 +270,6 @@ const App: React.FC = () => {
     return found || PERSONAS[5];
   }, [aiAnalysis]);
 
-  // Helper function to get the AI analysis text for a specific category
   const getAiAnalysisForCategory = (category: Category) => {
     if (!aiAnalysis) return "分析中...";
     switch(category) {
@@ -312,35 +289,23 @@ const App: React.FC = () => {
             <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-tight">脫單力檢核分析</h1>
             <p className="text-2xl text-slate-500 font-bold">快速找出你的脫單阻礙</p>
           </div>
-
           <div className="relative w-full aspect-[4/3] flex items-center justify-center animate-float">
              <img src="https://d1yei2z3i6k35z.cloudfront.net/2452254/694caa69f0eb6_main.svg" className="w-full h-full object-contain" />
           </div>
-
           <div className="grid grid-cols-1 gap-6 px-4">
             <div className="flex items-center space-x-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 transition-all hover:shadow-md">
-              <div className="text-6xl" style={{ filter: 'drop-shadow(0 4px 6px rgba(244, 63, 94, 0.4))' }}>✨</div>
-              <div>
-                <h3 className="text-xl font-black text-slate-800">魅力原型</h3>
-                <p className="text-slate-400 font-medium">分析你在戀愛市場中的真實定位</p>
-              </div>
+              <div className="text-6xl">✨</div>
+              <div><h3 className="text-xl font-black text-slate-800">魅力原型</h3><p className="text-slate-400 font-medium">分析你在戀愛市場中的真實定位</p></div>
             </div>
             <div className="flex items-center space-x-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 transition-all hover:shadow-md">
-              <div className="text-6xl" style={{ filter: 'drop-shadow(0 4px 6px rgba(59, 130, 246, 0.4))' }}>📊</div>
-              <div>
-                <h3 className="text-xl font-black text-slate-800">多維雷達</h3>
-                <p className="text-slate-400 font-medium">將外型、社交、心態數據化呈現</p>
-              </div>
+              <div className="text-6xl">📊</div>
+              <div><h3 className="text-xl font-black text-slate-800">多維雷達</h3><p className="text-slate-400 font-medium">將外型、社交、心態數據化呈現</p></div>
             </div>
             <div className="flex items-center space-x-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 transition-all hover:shadow-md">
-              <div className="text-6xl" style={{ filter: 'drop-shadow(0 4px 6px rgba(16, 185, 129, 0.4))' }}>🌱</div>
-              <div>
-                <h3 className="text-xl font-black text-slate-800">進化指南</h3>
-                <p className="text-slate-400 font-medium">獲得個人深度報告與建議</p>
-              </div>
+              <div className="text-6xl">🌱</div>
+              <div><h3 className="text-xl font-black text-slate-800">進化指南</h3><p className="text-slate-400 font-medium">獲得個人深度報告與建議</p></div>
             </div>
           </div>
-
           <button onClick={handleStart} className="bg-slate-900 hover:bg-black text-white font-black py-7 px-24 rounded-[2.5rem] text-2xl shadow-2xl transition transform active:scale-95 text-center">啟動深度分析</button>
         </div>
       )}
@@ -358,20 +323,20 @@ const App: React.FC = () => {
           </div>
 
           {isIntroMode ? (
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 text-center">
-              <h2 className="text-4xl font-black text-slate-800 mb-4">{QUESTIONS[currentIdx].category}</h2>
-              <p className="text-xl text-slate-500 leading-relaxed mb-10">{CATEGORY_INFO[QUESTIONS[currentIdx].category].description}</p>
-              <button onClick={nextStep} className="w-full bg-slate-900 text-white font-bold py-5 rounded-2xl text-lg shadow-lg transition transform active:scale-95">進入測驗</button>
+            <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 text-center space-y-10">
+              <div>
+                <h2 className="text-4xl font-black text-slate-800 mb-4">{QUESTIONS[currentIdx].category}</h2>
+                <p className="text-xl text-slate-500 leading-relaxed">{CATEGORY_INFO[QUESTIONS[currentIdx].category].description}</p>
+              </div>
+              <div className="flex flex-col space-y-3">
+                <button onClick={nextStep} className="w-full bg-slate-900 text-white font-bold py-5 rounded-2xl text-lg shadow-lg transition transform active:scale-95">進入測驗</button>
+                <button onClick={prevStep} className="w-full bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl hover:bg-slate-200 transition-colors">回到上一題</button>
+              </div>
             </div>
           ) : (
             <div className="space-y-6">
               <div className="relative w-full aspect-video rounded-[2.5rem] overflow-hidden bg-slate-50 border border-slate-100 shadow-inner group">
-                 {/* 使用靜態情境圖取代 AI 生成，解決 429 錯誤 */}
-                 <img 
-                   src={CATEGORY_IMAGES[QUESTIONS[currentIdx].category]} 
-                   alt={QUESTIONS[currentIdx].category} 
-                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
-                 />
+                 <img src={CATEGORY_IMAGES[QUESTIONS[currentIdx].category]} alt={QUESTIONS[currentIdx].category} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none"></div>
               </div>
               <div className="bg-white p-6 md:p-10 rounded-[2.5rem] shadow-xl border border-slate-100 space-y-8">
@@ -385,8 +350,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-4 px-2">
-                <button onClick={prevStep} className="flex-1 py-4 rounded-2xl font-bold bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">上一步</button>
-                <button onClick={nextStep} disabled={answers[QUESTIONS[currentIdx].id] === undefined} className={`flex-[2] py-4 rounded-2xl font-black shadow-lg transition-all ${answers[QUESTIONS[currentIdx].id] === undefined ? 'bg-blue-300 text-white opacity-50 cursor-not-allowed' : 'bg-blue-600 text-white active:scale-95'}`}>{currentIdx === QUESTIONS.length - 1 ? '分析報告' : '下一步'}</button>
+                <button onClick={prevStep} className="flex-1 py-4 rounded-2xl font-bold bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">回到上一題</button>
               </div>
             </div>
           )}
@@ -396,45 +360,34 @@ const App: React.FC = () => {
       {step === 'diagnosing' && (
         <div className="flex-1 flex flex-col items-center justify-center w-full min-h-[60vh] space-y-12 animate-fade-in text-center px-4">
           <div className="relative">
-            {/* 增加邊框對比度 border-slate-200 */}
             <div className="w-32 h-32 border-8 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
             <div className="absolute inset-0 flex items-center justify-center text-2xl font-black text-slate-800">{Math.floor(fakeProgress)}%</div>
           </div>
           <div className="space-y-4">
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">AI 診斷引擎正在啟動</h2>
             <div className="flex flex-col space-y-2 text-slate-500 font-bold">
-              <span className={fakeProgress > 15 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 正在分析你的作答細節...</span>
-              <span className={fakeProgress > 45 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 比對 10,000+ 社交成功案例...</span>
-              <span className={fakeProgress > 80 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 彭邦典教練正在生成專屬建議...</span>
+              <span className={fakeProgress > 15 ? 'text-blue-600 opacity-100' : 'opacity-40'}>● 正在分析你的作答細節...</span>
+              <span className={fakeProgress > 45 ? 'text-blue-600 opacity-100' : 'opacity-40'}>● 比對 10,000+ 社交成功案例...</span>
+              <span className={fakeProgress > 80 ? 'text-blue-600 opacity-100' : 'opacity-40'}>● 彭邦典教練正在生成專屬建議...</span>
             </div>
           </div>
-          <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden shadow-inner">
-            <div className="h-full bg-blue-600 transition-all duration-300 ease-out" style={{ width: `${fakeProgress}%` }}></div>
-          </div>
-          <p className="text-slate-400 font-medium italic">「魅力不是天生，而是可以被設計的」</p>
+          <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-blue-600 transition-all duration-300 ease-out" style={{ width: `${fakeProgress}%` }}></div></div>
         </div>
       )}
 
       {step === 'result' && localSummary && aiAnalysis && (
         <div className="w-full space-y-10 py-8 animate-fade-in px-2">
-          {/* 1. 人格卡片區塊 */}
           <div className="bg-white rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100">
-            <div className="relative aspect-[3/2] bg-gray-50 flex items-center justify-center">
-              <img src={activePersona.imageUrl} alt={activePersona.title} className="w-full h-full object-contain p-6" />
-              <div className="absolute bottom-0 left-0 p-8 text-white bg-gradient-to-t from-black/80 w-full">
-                <div className="flex flex-col items-start space-y-1 mb-2">
-                   <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Persona</span>
-                </div>
+            <div className="relative w-full aspect-[3/2] bg-gray-50 flex items-center justify-center overflow-hidden">
+              <img src={activePersona.imageUrl} alt={activePersona.title} className="w-full h-full object-cover" />
+              <div className="absolute bottom-0 left-0 p-8 text-white bg-gradient-to-t from-black/90 w-full">
+                <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase mb-2 inline-block">Persona</span>
                 <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-2">{activePersona.title}</h2>
                 <p className="text-lg md:text-xl font-medium text-white/90 italic">{aiAnalysis.personaOverview || activePersona.subtitle}</p>
               </div>
             </div>
             <div className="p-8 md:p-10 space-y-8">
-              <div className="flex flex-wrap gap-3">
-                {activePersona.tags.map(tag => (
-                  <span key={tag} className="px-6 py-3 bg-slate-100 text-slate-800 rounded-full text-lg font-black border border-slate-200"># {tag}</span>
-                ))}
-              </div>
+              <div className="flex flex-wrap gap-3">{activePersona.tags.map(tag => (<span key={tag} className="px-6 py-3 bg-slate-100 text-slate-800 rounded-full text-lg font-black border border-slate-200"># {tag}</span>))}</div>
               <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100">
                  <h5 className="text-blue-600 font-black text-xl uppercase tracking-widest mb-3">人格診斷分析</h5>
                  <p className="text-slate-800 text-lg md:text-xl leading-relaxed font-bold">{aiAnalysis.personaExplanation}</p>
@@ -442,71 +395,40 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* 2. 數據雷達圖區塊 */}
           <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-50 text-center">
             <div className="text-3xl md:text-4xl font-black text-slate-800 mb-8">總體魅力：<span className="text-blue-600">{localSummary.totalScore}</span> <span className="text-slate-300 text-lg">/ 48</span></div>
             <div className="h-[20rem] md:h-[24rem] mb-6"><canvas ref={radarChartRef}></canvas></div>
           </div>
 
-          {/* 3. 四大維度深度診斷區塊 */}
-          <div className="grid grid-cols-1 gap-6">
-             <div className="text-center py-4">
-                <h3 className="text-2xl font-black text-slate-900 tracking-tighter">四大屬性深度剖析</h3>
-                <p className="text-slate-400 font-bold">由 AI 針對你的回答細節生成的專屬建議</p>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {localSummary.summary.map((item) => (
-                  <div key={item.category} className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-slate-100 flex flex-col space-y-4 relative overflow-hidden group hover:shadow-xl transition-all">
-                     <div className={`absolute top-0 left-0 w-2 h-full ${item.level === '綠燈' ? 'bg-green-500' : item.level === '黃燈' ? 'bg-orange-400' : 'bg-red-500'}`}></div>
-                     <div className="flex items-center justify-between pl-4">
-                        <h4 className="text-xl font-black text-slate-800">{item.category}</h4>
-                        <span className={`px-4 py-1.5 rounded-full text-sm font-black ${item.level === '綠燈' ? 'bg-green-100 text-green-700' : item.level === '黃燈' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
-                          {item.level} ({item.score}分)
-                        </span>
-                     </div>
-                     <p className="text-slate-600 leading-relaxed pl-4 text-justify font-medium">
-                       {getAiAnalysisForCategory(item.category)}
-                     </p>
-                  </div>
-                ))}
-             </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {localSummary.summary.map((item) => (
+              <div key={item.category} className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-slate-100 flex flex-col space-y-4 relative overflow-hidden group">
+                 <div className={`absolute top-0 left-0 w-2 h-full ${item.level === '綠燈' ? 'bg-green-500' : item.level === '黃燈' ? 'bg-orange-400' : 'bg-red-500'}`}></div>
+                 <div className="flex items-center justify-between pl-4">
+                    <h4 className="text-xl font-black text-slate-800">{item.category}</h4>
+                    <span className={`px-4 py-1.5 rounded-full text-sm font-black ${item.level === '綠燈' ? 'bg-green-100 text-green-700' : item.level === '黃燈' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>{item.level} ({item.score}分)</span>
+                 </div>
+                 <p className="text-slate-600 leading-relaxed pl-4 text-justify font-medium">{getAiAnalysisForCategory(item.category)}</p>
+              </div>
+            ))}
           </div>
 
-          {/* 4. 教練總結與 CTA 區塊 */}
           {activePersona.id === 'charmer' ? (
-            <div className="bg-gradient-to-br from-slate-900 to-black rounded-[3.5rem] shadow-2xl p-10 md:p-14 text-center space-y-8 animate-fade-in border border-slate-800">
+            <div className="bg-gradient-to-br from-slate-900 to-black rounded-[3.5rem] shadow-2xl p-10 md:p-14 text-center space-y-8 border border-slate-800">
               <div className="text-6xl md:text-8xl">🏆</div>
               <h4 className="text-3xl md:text-4xl font-black text-white">你已是頂級魅力家</h4>
               <p className="text-slate-300 text-xl md:text-2xl font-bold">彭教練對你唯一的建議是：好好善用這份天賦。祝你一帆風順！</p>
             </div>
           ) : (
             <div className="rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col bg-white">
-              <div className="w-full relative">
-                <img src={EXPERT_CONFIG.imageUrl} alt="Expert Coach" className="w-full h-auto block object-cover" />
-              </div>
+              <div className="w-full relative"><img src={EXPERT_CONFIG.imageUrl} alt="Expert Coach" className="w-full h-auto block object-cover" /></div>
               <div className="bg-slate-900 p-8 md:p-12 space-y-8 flex-1">
                 <div className="space-y-6">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-3xl">💡</span>
-                    <h3 className="text-2xl font-black text-amber-400 tracking-tight">教練總結</h3>
-                  </div>
-                  
-                  {/* 使用 map 渲染分段的文字，解決文字擠在一起的問題 */}
-                  <div className="space-y-4">
-                    {aiAnalysis.coachGeneralAdvice.split('\n').filter(line => line.trim() !== '').map((line, idx) => (
-                      <p key={idx} className="text-lg md:text-xl leading-relaxed font-medium text-slate-200 opacity-95 text-justify">
-                        {line}
-                      </p>
-                    ))}
-                  </div>
-
+                  <div className="flex items-center space-x-3"><span className="text-3xl">💡</span><h3 className="text-2xl font-black text-amber-400 tracking-tight">教練總結</h3></div>
+                  <div className="space-y-4">{aiAnalysis.coachGeneralAdvice.split('\n').filter(line => line.trim() !== '').map((line, idx) => (<p key={idx} className="text-lg md:text-xl leading-relaxed font-medium text-slate-200 opacity-95 text-justify">{line}</p>))}</div>
                   <div className="w-full h-px bg-slate-700 my-4"></div>
-
-                  <p className="text-lg md:text-xl leading-relaxed font-bold text-white text-justify">
-                    {EXPERT_CONFIG.description}
-                  </p>
+                  <p className="text-lg md:text-xl leading-relaxed font-bold text-white text-justify">{EXPERT_CONFIG.description}</p>
                 </div>
-
                 <button onClick={() => window.open('https://www.menspalais.com', '_blank')} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-6 rounded-[2rem] text-xl md:text-2xl shadow-xl shadow-blue-900/50 flex items-center justify-center space-x-3 transition transform active:scale-95 mt-4">
                   <span>{EXPERT_CONFIG.ctaButtonText}</span>
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
@@ -514,7 +436,6 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
-          
           <div className="text-center pb-8"><button onClick={handleStart} className="text-slate-400 font-black uppercase tracking-widest hover:text-slate-600 transition-colors">重新進行測試</button></div>
         </div>
       )}
@@ -522,25 +443,6 @@ const App: React.FC = () => {
       <footer className="w-full text-center py-10 text-slate-400 text-[12px] px-6 border-t border-slate-100 mt-auto space-y-2 bg-slate-50">
         <p className="font-bold">© 男性形象教練 彭邦典 版權所有</p>
         <p>本測驗深度診斷由 AI 輔助生成，測驗結果僅供社交魅力提升參考。</p>
-        
-        {/* DEBUG PANEL - 顯示錯誤訊息 */}
-        <div className="inline-block mt-4 px-4 py-3 bg-white border border-slate-200 rounded text-xs font-mono text-left shadow-sm max-w-full overflow-hidden">
-           <p className={`font-bold ${keyStatus.startsWith('MISSING') ? 'text-red-600' : 'text-green-600'}`}>
-             API Key: {keyStatus}
-           </p>
-           {/* 紅色錯誤顯示區 */}
-           {lastError && (
-             <div className="mt-2 p-2 bg-red-50 text-red-600 border border-red-100 rounded break-all">
-               <strong>GOOGLE API ERROR:</strong> <br/>
-               {lastError}
-             </div>
-           )}
-           {lastError.includes('referer') && (
-             <p className="text-slate-500 mt-2 italic">
-               Hint: Your Google Key restricts domains. Add <b>https://love-test-*.vercel.app/*</b> to your Google Cloud Console "Website Restrictions".
-             </p>
-           )}
-        </div>
       </footer>
     </div>
   );
