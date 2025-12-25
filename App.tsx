@@ -111,12 +111,15 @@ const App: React.FC = () => {
   useEffect(() => {
     let timer: number;
     if (step === 'diagnosing') {
+      // 重置進度確保動畫從頭開始
+      setFakeProgress(1);
       timer = window.setInterval(() => {
         setFakeProgress(prev => {
           if (prev >= 98) return prev;
-          return prev + 0.35; 
+          // 稍微加快進度條速度，讓使用者更有感 (每 100ms + 0.8%)
+          return prev + 0.8; 
         });
-      }, 200);
+      }, 100);
     }
     return () => clearInterval(timer);
   }, [step]);
@@ -426,6 +429,28 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {step === 'diagnosing' && (
+        <div className="flex-1 flex flex-col items-center justify-center w-full min-h-[60vh] space-y-12 animate-fade-in text-center px-4">
+          <div className="relative">
+            {/* 增加邊框對比度 border-slate-200 */}
+            <div className="w-32 h-32 border-8 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center text-2xl font-black text-slate-800">{Math.floor(fakeProgress)}%</div>
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">診斷引擎正在啟動</h2>
+            <div className="flex flex-col space-y-2 text-slate-500 font-bold">
+              <span className={fakeProgress > 15 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 正在分析你的作答細節...</span>
+              <span className={fakeProgress > 45 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 比對社交成功案例...</span>
+              <span className={fakeProgress > 80 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 正在生成專屬建議...</span>
+            </div>
+          </div>
+          <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden shadow-inner">
+            <div className="h-full bg-blue-600 transition-all duration-300 ease-out" style={{ width: `${fakeProgress}%` }}></div>
+          </div>
+          <p className="text-slate-400 font-medium italic">「魅力不是天生，而是可以學習的技能」</p>
+        </div>
+      )}
+
       {step === 'result' && localSummary && aiAnalysis && (
         <div className="w-full space-y-10 py-8 animate-fade-in px-2">
           {/* 1. 人格卡片區塊 */}
@@ -453,7 +478,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* 2. 數據雷達圖區塊 (移到這裡) */}
+          {/* 2. 數據雷達圖區塊 */}
           <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-50 text-center">
             <div className="text-3xl md:text-4xl font-black text-slate-800 mb-8">總體魅力：<span className="text-blue-600">{localSummary.totalScore}</span> <span className="text-slate-300 text-lg">/ 48</span></div>
             <div className="h-[20rem] md:h-[24rem] mb-6"><canvas ref={radarChartRef}></canvas></div>
@@ -463,7 +488,7 @@ const App: React.FC = () => {
           <div className="grid grid-cols-1 gap-6">
              <div className="text-center py-4">
                 <h3 className="text-2xl font-black text-slate-900 tracking-tighter">四大屬性深度剖析</h3>
-                <p className="text-slate-400 font-bold">由 AI 針對你的回答細節生成的專屬建議</p>
+                <p className="text-slate-400 font-bold">針對你的回答細節生成的分析報告</p>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {localSummary.summary.map((item) => (
@@ -483,21 +508,18 @@ const App: React.FC = () => {
              </div>
           </div>
 
-          {/* 4. 教練總結與 CTA 區塊 (重構為無縫長卡片) */}
+          {/* 4. 教練總結與 CTA 區塊 */}
           {activePersona.id === 'charmer' ? (
             <div className="bg-gradient-to-br from-slate-900 to-black rounded-[3.5rem] shadow-2xl p-10 md:p-14 text-center space-y-8 animate-fade-in border border-slate-800">
               <div className="text-6xl md:text-8xl">🏆</div>
               <h4 className="text-3xl md:text-4xl font-black text-white">你已是頂級魅力家</h4>
-              <p className="text-slate-300 text-xl md:text-2xl font-bold">彭教練對你唯一的建議是：好好善用這份天賦。祝你一帆風順！</p>
+              <p className="text-slate-300 text-xl md:text-2xl font-bold">教練對你唯一的建議是：好好善用這份天賦。祝你一帆風順！</p>
             </div>
           ) : (
             <div className="rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col bg-white">
-              {/* 上半部：圖片 */}
               <div className="w-full relative">
                 <img src={EXPERT_CONFIG.imageUrl} alt="Expert Coach" className="w-full h-auto block object-cover" />
               </div>
-              
-              {/* 下半部：無縫銜接的深色文字區塊 */}
               <div className="bg-slate-900 p-8 md:p-12 space-y-8 flex-1">
                 <div className="space-y-6">
                   <div className="flex items-center space-x-3">
@@ -505,15 +527,12 @@ const App: React.FC = () => {
                     <h3 className="text-2xl font-black text-amber-400 tracking-tight">教練總結</h3>
                   </div>
                   
-                  {/* AI 建議 */}
                   <p className="text-lg md:text-xl leading-relaxed font-medium text-slate-200 opacity-95 text-justify">
                     {aiAnalysis.coachGeneralAdvice}
                   </p>
 
-                  {/* 分隔線 */}
                   <div className="w-full h-px bg-slate-700 my-4"></div>
 
-                  {/* 課程銷售文案 */}
                   <p className="text-lg md:text-xl leading-relaxed font-bold text-white text-justify">
                     {EXPERT_CONFIG.description}
                   </p>
