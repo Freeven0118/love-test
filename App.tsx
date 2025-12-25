@@ -34,6 +34,19 @@ const App: React.FC = () => {
   const radarChartRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstance = useRef<any>(null);
 
+  // 用於 Debug 的狀態
+  const [keyStatus, setKeyStatus] = useState<string>('Checking...');
+
+  useEffect(() => {
+    // 檢查 API Key 狀態
+    const key = process.env.API_KEY;
+    if (!key || key === "undefined" || key === "") {
+      setKeyStatus("MISSING");
+    } else {
+      setKeyStatus(`Present (Len: ${key.length}, Starts: ${key.substring(0, 4)}...)`);
+    }
+  }, []);
+
   const handleStart = () => {
     setStep('quiz');
     setCurrentIdx(0);
@@ -52,7 +65,7 @@ const App: React.FC = () => {
 
     try {
       const apiKey = process.env.API_KEY;
-      if (!apiKey || apiKey.includes('undefined')) {
+      if (!apiKey || apiKey === "undefined" || apiKey === "") {
          console.warn("API Key missing, skipping image generation");
          return;
       }
@@ -145,7 +158,7 @@ const App: React.FC = () => {
           console.error("Critical: No API Key found.");
           setAiAnalysis({
             selectedPersonaId: localSummary.totalScore > 36 ? 'charmer' : 'neighbor',
-            personaExplanation: "⚠️ 系統檢測不到 API 金鑰。請確認 Vercel 後台的 Environment Variables 是否已設定 'VITE_API_KEY'，並且設定完畢後是否有點擊 'Redeploy' 重新部署。",
+            personaExplanation: "⚠️ 系統檢測不到 API 金鑰。請看頁面底部的 Debug 資訊。",
             personaOverview: "無法連線至 AI 大腦。",
             appearanceAnalysis: "請檢查 Vercel 設定。",
             socialAnalysis: "請檢查 Vercel 設定。",
@@ -458,12 +471,22 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <footer className="w-full text-center py-10 text-slate-400 text-[12px] px-6 border-t border-slate-100 mt-auto">
+      <footer className="w-full text-center py-10 text-slate-400 text-[12px] px-6 border-t border-slate-100 mt-auto space-y-2">
         <p className="font-bold">© 男性形象教練 彭邦典 版權所有</p>
         <p>本測驗深度診斷由 AI 輔助生成，測驗結果僅供社交魅力提升參考。</p>
-        {(!process.env.API_KEY || process.env.API_KEY === "undefined") && (
-          <p className="text-red-500 font-bold mt-2">DEBUG: Vercel API Key not set</p>
-        )}
+        
+        {/* DEBUG PANEL */}
+        <div className="inline-block mt-4 px-4 py-2 bg-slate-100 rounded text-xs font-mono text-left">
+           <p className={`font-bold ${keyStatus.startsWith('MISSING') ? 'text-red-600' : 'text-green-600'}`}>
+             API Key Status: {keyStatus}
+           </p>
+           {keyStatus.startsWith('MISSING') && (
+             <p className="text-slate-500 mt-1">
+               Hint: In Vercel, set env var <b>VITE_API_KEY</b> or <b>API_KEY</b>. <br/>
+               Then click "Deployments" {'>'} "Redeploy".
+             </p>
+           )}
+        </div>
       </footer>
     </div>
   );
