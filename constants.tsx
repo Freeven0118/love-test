@@ -1,16 +1,20 @@
 
 import { Question, Category } from './types';
 
-// AI 生成指令集：確保視覺一致性與高品質
-export const IMAGE_PROMPTS: Record<string, string> = {
-  'hero': "Cinematic lifestyle photography of a stylish, confident man and a woman sharing a subtle, warm smile in a sunlit modern cafe. Soft golden hour lighting, deep depth of field, high-end commercial aesthetic, emotional connection, 8k resolution, professional color grading, NO TEXT.",
-  '形象外表': "Professional close-up photography of a well-groomed man's morning routine, a clean modern bathroom mirror, soft natural window light, luxury skincare bottles and a sharp white shirt in the background, minimalist aesthetic, cinematic lighting.",
-  '社群形象': "A high-end smartphone lying on a dark wood table, screen showing a vibrant and well-curated social media profile with travel and lifestyle photos, soft bokeh background of a cozy lounge, cinematic atmosphere.",
-  '行動與互動': "Cinematic wide shot of a romantic evening date in a city terrace, blurred city lights in the background, two wine glasses on a table, warm candlelight, intimate and sophisticated atmosphere, professional photography.",
-  '心態與習慣': "A man looking out from a large floor-to-ceiling window at a beautiful sunrise over a modern city skyline, calm and determined posture, cinematic blue and orange tones, inspirational mood, high-quality photography.",
-  'expert': "A professional and friendly male image consultant standing in a high-end fashion studio, soft studio lighting, confident and approachable expression, wearing a tailored blazer, blurred background of clothing racks, 8k resolution."
+// ==========================================
+// 圖片設定區 (請在此替換您自己的圖片連結)
+// ==========================================
+
+// 1. 四大測驗環節的情境圖片
+// 建議尺寸：1920x1080 (16:9) 或其他橫式比例
+export const CATEGORY_IMAGES: Record<Category, string> = {
+  '形象外表': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=2787&auto=format&fit=crop',
+  '社群形象': 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=2800&auto=format&fit=crop',
+  '行動與互動': 'https://images.unsplash.com/photo-1517849845537-4d257902454a?q=80&w=2800&auto=format&fit=crop',
+  '心態與習慣': 'https://images.unsplash.com/photo-1499209974431-2761e252375a?q=80&w=2800&auto=format&fit=crop',
 };
 
+// 2. 專家/教練資訊設定
 export const EXPERT_CONFIG = {
   name: "形象教練 彭邦典",
   title: "自信魅力養成 / 脫單形象塑造",
@@ -19,6 +23,7 @@ export const EXPERT_CONFIG = {
   ctaButtonText: "瞭解它怎麽幫助我"
 };
 
+// 3. 測驗題目設定
 export const QUESTIONS: Question[] = [
   // A. 形象外表
   { id: 1, category: '形象外表', text: '「我有一套自己固定在用的洗臉與保養方式，能讓皮膚大致保持乾淨、氣色穩定，不會長期滿臉痘痘過粉刺」' },
@@ -52,6 +57,7 @@ export const OPTIONS = [
   { label: '完全沒有', value: 0 },
 ];
 
+// 4. 人格結果設定 (包含結果頁圖片)
 export const PERSONAS = [
   {
     id: 'charmer',
