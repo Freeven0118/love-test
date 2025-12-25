@@ -16,6 +16,14 @@ interface AiReport {
   coachGeneralAdvice: string; 
 }
 
+// 定義四大分類的靜態情境圖 (取代 AI 生成，解決 Quota 問題)
+const CATEGORY_IMAGES: Record<Category, string> = {
+  '形象外表': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=2787&auto=format&fit=crop', // 質感男性肖像
+  '社群形象': 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=2800&auto=format&fit=crop', // 社群媒體/手機情境
+  '行動與互動': 'https://images.unsplash.com/photo-1517849845537-4d257902454a?q=80&w=2800&auto=format&fit=crop', // 餐廳約會/社交氛圍
+  '心態與習慣': 'https://images.unsplash.com/photo-1499209974431-2761e252375a?q=80&w=2800&auto=format&fit=crop', // 晨曦/思考/心態
+};
+
 const App: React.FC = () => {
   // 狀態管理
   const [step, setStep] = useState<'hero' | 'quiz' | 'diagnosing' | 'result'>('hero');
@@ -23,15 +31,13 @@ const App: React.FC = () => {
   const [isIntroMode, setIsIntroMode] = useState(true);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   
-  const [imagesCache, setImagesCache] = useState<Record<number, string>>({});
-  const [isImageLoading, setIsImageLoading] = useState(false);
+  // 移除 Image Generation 相關狀態
   
   const [aiAnalysis, setAiAnalysis] = useState<AiReport | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [fakeProgress, setFakeProgress] = useState(0);
 
   // Refs
-  const loadingRef = useRef<Record<number, boolean>>({});
   const aiFetchingRef = useRef(false); // 防止重複呼叫 AI
   const radarChartRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstance = useRef<any>(null);
@@ -55,58 +61,13 @@ const App: React.FC = () => {
     setCurrentIdx(0);
     setIsIntroMode(true);
     setAnswers({});
-    setImagesCache({});
     setAiAnalysis(null);
     setFakeProgress(0);
     setLastError('');
-    loadingRef.current = {};
     aiFetchingRef.current = false;
   };
 
-  const generateImageForIndex = async (index: number, isPriority: boolean = false) => {
-    if (imagesCache[index] || loadingRef.current[index] || index >= QUESTIONS.length) return;
-    if (isPriority) setIsImageLoading(true);
-    loadingRef.current[index] = true;
-
-    try {
-      const apiKey = process.env.API_KEY;
-      if (!apiKey || apiKey === "undefined" || apiKey === "") return;
-
-      const ai = new GoogleGenAI({ apiKey: apiKey });
-      const category = QUESTIONS[index].category;
-      const basePrompt = IMAGE_PROMPTS[category] || `Professional photography related to ${QUESTIONS[index].text}`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ text: basePrompt }] },
-        config: { imageConfig: { aspectRatio: "16:9" } },
-      });
-      
-      const parts = response?.candidates?.[0]?.content?.parts;
-      if (parts) {
-        for (const part of parts) {
-          if (part.inlineData?.data) {
-            setImagesCache(prev => ({ ...prev, [index]: `data:image/png;base64,${part.inlineData!.data}` }));
-            break;
-          }
-        }
-      }
-    } catch (e: any) { 
-      console.error("Image generation error:", e);
-      setLastError(`Img Error: ${e.message}`);
-    } finally {
-      loadingRef.current[index] = false;
-      if (isPriority) setIsImageLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (step === 'quiz' && !isIntroMode) {
-      generateImageForIndex(currentIdx, true).then(() => {
-        if (currentIdx + 1 < QUESTIONS.length) generateImageForIndex(currentIdx + 1, false);
-      });
-    }
-  }, [currentIdx, isIntroMode, step]);
+  // 移除 generateImageForIndex 函式與相關 useEffect
 
   useEffect(() => {
     let timer: number;
@@ -411,11 +372,14 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="relative w-full aspect-video rounded-[2.5rem] overflow-hidden bg-slate-50 border border-slate-100 shadow-inner">
-                {isImageLoading && !imagesCache[currentIdx] && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/80"><div className="w-8 h-8 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div></div>
-                )}
-                {imagesCache[currentIdx] ? <img src={imagesCache[currentIdx]} alt="Visual" className="w-full h-full object-cover" /> : <div className="absolute inset-0 flex items-center justify-center text-slate-300 font-bold italic">載入情境中...</div>}
+              <div className="relative w-full aspect-video rounded-[2.5rem] overflow-hidden bg-slate-50 border border-slate-100 shadow-inner group">
+                 {/* 使用靜態情境圖取代 AI 生成，解決 429 錯誤 */}
+                 <img 
+                   src={CATEGORY_IMAGES[QUESTIONS[currentIdx].category]} 
+                   alt={QUESTIONS[currentIdx].category} 
+                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                 />
+                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none"></div>
               </div>
               <div className="bg-white p-6 md:p-10 rounded-[2.5rem] shadow-xl border border-slate-100 space-y-8">
                 <h2 className="text-xl md:text-2xl font-black text-slate-800 text-center leading-relaxed px-4">{QUESTIONS[currentIdx].text}</h2>
