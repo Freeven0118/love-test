@@ -208,12 +208,19 @@ const App: React.FC = () => {
               "socialAnalysis": "針對社群形象的具體分析與建議 (約 50 字)",
               "interactionAnalysis": "針對行動與互動的具體分析與建議 (約 50 字)",
               "mindsetAnalysis": "針對心態與習慣的具體分析與建議 (約 50 字)",
-              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (直白、專業，約 100 字)"
+              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (約 100-150 字)"
             }
 
-            重要規則：
+            關於「coachGeneralAdvice」（教練總結）的撰寫風格嚴格要求：
+            1. **戰略大於執行**：嚴格禁止提供瑣碎的「具體執行事項」（如：去剪頭髮、買保養品、多參加活動、每天發文）。這些瑣碎的執行細節留給課程去教。你要給的是「宏觀戰略」與「核心盲點」。
+            2. **直擊核心問題**：告訴他「為什麼」他會卡住？是因為太愛惜羽毛？是因為努力錯方向？還是心態太軟弱？
+            3. **語氣口吻**：
+               - **嚴禁使用學術名詞**、論文語氣或生硬的翻譯腔。
+               - 要像一位**有經驗的兄長或軍師**，坐在咖啡廳對面，嚴肅但真誠地看著他，用**最白話、最一針見血**的方式點醒他。
+               - 語氣要有威嚴與洞察力，不要客套的鼓勵，要真實的點評。
+
+            關於 Persona 選擇規則：
             - 若總分 > 38 且各維度均衡，selectedPersonaId 必須是 'charmer'。
-            - 語氣：有威嚴、專業、直白。
           `;
 
           const response = await ai.models.generateContent({
@@ -437,17 +444,17 @@ const App: React.FC = () => {
             <div className="absolute inset-0 flex items-center justify-center text-2xl font-black text-slate-800">{Math.floor(fakeProgress)}%</div>
           </div>
           <div className="space-y-4">
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">診斷引擎正在啟動</h2>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">AI 診斷引擎正在啟動</h2>
             <div className="flex flex-col space-y-2 text-slate-500 font-bold">
               <span className={fakeProgress > 15 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 正在分析你的作答細節...</span>
-              <span className={fakeProgress > 45 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 比對社交成功案例...</span>
-              <span className={fakeProgress > 80 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 正在生成專屬建議...</span>
+              <span className={fakeProgress > 45 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 比對 10,000+ 社交成功案例...</span>
+              <span className={fakeProgress > 80 ? 'text-blue-600 opacity-100' : 'opacity-40 transition-opacity'}>● 彭邦典教練正在生成專屬建議...</span>
             </div>
           </div>
           <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden shadow-inner">
             <div className="h-full bg-blue-600 transition-all duration-300 ease-out" style={{ width: `${fakeProgress}%` }}></div>
           </div>
-          <p className="text-slate-400 font-medium italic">「魅力不是天生，而是可以學習的技能」</p>
+          <p className="text-slate-400 font-medium italic">「魅力不是天生，而是可以被設計的」</p>
         </div>
       )}
 
@@ -488,7 +495,7 @@ const App: React.FC = () => {
           <div className="grid grid-cols-1 gap-6">
              <div className="text-center py-4">
                 <h3 className="text-2xl font-black text-slate-900 tracking-tighter">四大屬性深度剖析</h3>
-                <p className="text-slate-400 font-bold">針對你的回答細節生成的分析報告</p>
+                <p className="text-slate-400 font-bold">由 AI 針對你的回答細節生成的專屬建議</p>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {localSummary.summary.map((item) => (
@@ -513,7 +520,7 @@ const App: React.FC = () => {
             <div className="bg-gradient-to-br from-slate-900 to-black rounded-[3.5rem] shadow-2xl p-10 md:p-14 text-center space-y-8 animate-fade-in border border-slate-800">
               <div className="text-6xl md:text-8xl">🏆</div>
               <h4 className="text-3xl md:text-4xl font-black text-white">你已是頂級魅力家</h4>
-              <p className="text-slate-300 text-xl md:text-2xl font-bold">教練對你唯一的建議是：好好善用這份天賦。祝你一帆風順！</p>
+              <p className="text-slate-300 text-xl md:text-2xl font-bold">彭教練對你唯一的建議是：好好善用這份天賦。祝你一帆風順！</p>
             </div>
           ) : (
             <div className="rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col bg-white">
