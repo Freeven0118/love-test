@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { QUESTIONS, OPTIONS, CATEGORY_INFO, PERSONAS, EXPERT_CONFIG, IMAGE_PROMPTS } from './constants';
@@ -200,11 +201,11 @@ const App: React.FC = () => {
               "selectedPersonaId": "從 [charmer, statue, hustler, neighbor, sage, pioneer] 中選一個最貼切的 ID",
               "personaExplanation": "解釋為何選這個人格 (約 100 字)",
               "personaOverview": "一句話總結他的現狀",
-              "appearanceAnalysis": "針對形象外表的具體分析與建議",
-              "socialAnalysis": "針對社群形象的具體分析與建議",
-              "interactionAnalysis": "針對行動與互動的具體分析與建議",
-              "mindsetAnalysis": "針對心態與習慣的具體分析與建議",
-              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (直白、專業)"
+              "appearanceAnalysis": "針對形象外表的具體分析與建議 (約 50 字)",
+              "socialAnalysis": "針對社群形象的具體分析與建議 (約 50 字)",
+              "interactionAnalysis": "針對行動與互動的具體分析與建議 (約 50 字)",
+              "mindsetAnalysis": "針對心態與習慣的具體分析與建議 (約 50 字)",
+              "coachGeneralAdvice": "彭邦典教練的總結戰略建議 (直白、專業，約 100 字)"
             }
 
             重要規則：
@@ -327,6 +328,18 @@ const App: React.FC = () => {
     return found || PERSONAS[5];
   }, [aiAnalysis]);
 
+  // Helper function to get the AI analysis text for a specific category
+  const getAiAnalysisForCategory = (category: Category) => {
+    if (!aiAnalysis) return "分析中...";
+    switch(category) {
+      case '形象外表': return aiAnalysis.appearanceAnalysis;
+      case '社群形象': return aiAnalysis.socialAnalysis;
+      case '行動與互動': return aiAnalysis.interactionAnalysis;
+      case '心態與習慣': return aiAnalysis.mindsetAnalysis;
+      default: return "";
+    }
+  };
+
   return (
     <div className="min-h-screen max-w-2xl mx-auto flex flex-col items-center p-4 md:p-8">
       {step === 'hero' && (
@@ -436,12 +449,16 @@ const App: React.FC = () => {
 
       {step === 'result' && localSummary && aiAnalysis && (
         <div className="w-full space-y-10 py-8 animate-fade-in px-2">
+          {/* 人格卡片區塊 */}
           <div className="bg-white rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100">
             <div className="relative aspect-[3/2] bg-gray-50 flex items-center justify-center">
               <img src={activePersona.imageUrl} alt={activePersona.title} className="w-full h-full object-contain p-6" />
               <div className="absolute bottom-0 left-0 p-8 text-white bg-gradient-to-t from-black/80 w-full">
-                <h2 className="text-4xl md:text-5xl font-black tracking-tight">{activePersona.title}</h2>
-                <p className="text-lg md:text-xl font-medium text-white/80">{activePersona.subtitle}</p>
+                <div className="flex flex-col items-start space-y-1 mb-2">
+                   <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Persona</span>
+                </div>
+                <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-2">{activePersona.title}</h2>
+                <p className="text-lg md:text-xl font-medium text-white/90 italic">{aiAnalysis.personaOverview || activePersona.subtitle}</p>
               </div>
             </div>
             <div className="p-8 md:p-10 space-y-8">
@@ -452,11 +469,45 @@ const App: React.FC = () => {
               </div>
               <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100">
                  <h5 className="text-blue-600 font-black text-xl uppercase tracking-widest mb-3">人格診斷分析</h5>
-                 <p className="text-slate-800 text-lg md:text-xl leading-relaxed font-bold">{aiAnalysis?.personaExplanation}</p>
+                 <p className="text-slate-800 text-lg md:text-xl leading-relaxed font-bold">{aiAnalysis.personaExplanation}</p>
               </div>
             </div>
           </div>
 
+          {/* 教練戰略總結區塊 (NEW) */}
+          <div className="bg-slate-900 text-white p-8 md:p-10 rounded-[3rem] shadow-xl space-y-4 border border-slate-800">
+            <div className="flex items-center space-x-3 mb-2">
+              <span className="text-3xl">💡</span>
+              <h3 className="text-2xl font-black text-amber-400 tracking-tight">彭邦典教練戰略總結</h3>
+            </div>
+            <p className="text-lg md:text-xl leading-relaxed font-medium text-slate-100 opacity-95">{aiAnalysis.coachGeneralAdvice}</p>
+          </div>
+
+          {/* 四大維度深度診斷區塊 (NEW) */}
+          <div className="grid grid-cols-1 gap-6">
+             <div className="text-center py-4">
+                <h3 className="text-2xl font-black text-slate-900 tracking-tighter">四大屬性深度剖析</h3>
+                <p className="text-slate-400 font-bold">由 AI 針對你的回答細節生成的專屬建議</p>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {localSummary.summary.map((item) => (
+                  <div key={item.category} className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-slate-100 flex flex-col space-y-4 relative overflow-hidden group hover:shadow-xl transition-all">
+                     <div className={`absolute top-0 left-0 w-2 h-full ${item.level === '綠燈' ? 'bg-green-500' : item.level === '黃燈' ? 'bg-orange-400' : 'bg-red-500'}`}></div>
+                     <div className="flex items-center justify-between pl-4">
+                        <h4 className="text-xl font-black text-slate-800">{item.category}</h4>
+                        <span className={`px-4 py-1.5 rounded-full text-sm font-black ${item.level === '綠燈' ? 'bg-green-100 text-green-700' : item.level === '黃燈' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
+                          {item.level} ({item.score}分)
+                        </span>
+                     </div>
+                     <p className="text-slate-600 leading-relaxed pl-4 text-justify font-medium">
+                       {getAiAnalysisForCategory(item.category)}
+                     </p>
+                  </div>
+                ))}
+             </div>
+          </div>
+
+          {/* 數據雷達圖區塊 */}
           <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-50 text-center">
             <div className="text-3xl md:text-4xl font-black text-slate-800 mb-8">總體魅力：<span className="text-blue-600">{localSummary.totalScore}</span> <span className="text-slate-300 text-lg">/ 48</span></div>
             <div className="h-[20rem] md:h-[24rem] mb-6"><canvas ref={radarChartRef}></canvas></div>
