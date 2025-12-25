@@ -17,7 +17,7 @@ interface AiReport {
 }
 
 const App: React.FC = () => {
-  // 狀態管理：移除 security 狀態，預設為 hero
+  // 狀態管理
   const [step, setStep] = useState<'hero' | 'quiz' | 'diagnosing' | 'result'>('hero');
   const [currentIdx, setCurrentIdx] = useState(0);
   const [isIntroMode, setIsIntroMode] = useState(true);
@@ -36,6 +36,7 @@ const App: React.FC = () => {
 
   // 用於 Debug 的狀態
   const [keyStatus, setKeyStatus] = useState<string>('Checking...');
+  const [lastError, setLastError] = useState<string>('');
 
   useEffect(() => {
     // 檢查 API Key 狀態
@@ -55,6 +56,7 @@ const App: React.FC = () => {
     setImagesCache({});
     setAiAnalysis(null);
     setFakeProgress(0);
+    setLastError(''); // 清除錯誤紀錄
     loadingRef.current = {};
   };
 
@@ -66,7 +68,6 @@ const App: React.FC = () => {
     try {
       const apiKey = process.env.API_KEY;
       if (!apiKey || apiKey === "undefined" || apiKey === "") {
-         console.warn("API Key missing, skipping image generation");
          return;
       }
 
@@ -91,6 +92,8 @@ const App: React.FC = () => {
       }
     } catch (e: any) { 
       console.error("Image generation error:", e);
+      // 圖片失敗不影響流程，但紀錄一下
+      setLastError(`Img Error: ${e.message}`);
     } finally {
       loadingRef.current[index] = false;
       if (isPriority) setIsImageLoading(false);
@@ -150,15 +153,16 @@ const App: React.FC = () => {
     if (step === 'diagnosing' && localSummary && !aiAnalysis && !isAiLoading) {
       const fetchAiAnalysis = async () => {
         setIsAiLoading(true);
-        
+        setLastError(''); // Clear previous errors
+
         // 1. 檢查 API Key 是否存在
         const apiKey = process.env.API_KEY;
-        // 如果是在 Vercel 環境但沒設定好，這裡通常會是 undefined
         if (!apiKey || apiKey === "undefined" || apiKey.length < 10) {
-          console.error("Critical: No API Key found.");
+          const msg = "API Key MISSING in Runtime.";
+          setLastError(msg);
           setAiAnalysis({
             selectedPersonaId: localSummary.totalScore > 36 ? 'charmer' : 'neighbor',
-            personaExplanation: "⚠️ 系統檢測不到 API 金鑰。請看頁面底部的 Debug 資訊。",
+            personaExplanation: "⚠️ 錯誤：找不到 API Key。請檢查 Vercel 環境變數。",
             personaOverview: "無法連線至 AI 大腦。",
             appearanceAnalysis: "請檢查 Vercel 設定。",
             socialAnalysis: "請檢查 Vercel 設定。",
@@ -195,7 +199,6 @@ const App: React.FC = () => {
             語氣：有威嚴、專業、直白。
           `;
 
-          // 改用 Flash 模型，速度更快，失敗率更低
           const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview", 
             contents: [{ parts: [{ text: prompt }] }],
@@ -223,16 +226,18 @@ const App: React.FC = () => {
           setAiAnalysis(json);
         } catch (e: any) {
           console.error("AI Analysis Error:", e);
-          let errorMsg = "由於網路連線狀況，我們根據目前分數為您進行基礎判定。";
           
-          // 如果是權限錯誤，顯示更清楚的訊息
-          if (e.toString().includes('403') || e.toString().includes('key')) {
-             errorMsg = "API 金鑰無效或權限不足 (403)。請確認您的 API Key 是否正確且有足夠額度。";
-          }
+          // 捕捉詳細錯誤訊息
+          let detailedError = e.message || e.toString();
+          if (detailedError.includes('403')) detailedError += " (Forbidden: Check API Key restrictions)";
+          if (detailedError.includes('400')) detailedError += " (Bad Request: Check API Key validity)";
+          setLastError(detailedError);
 
+          let friendlyMsg = "⚠️ AI 連線發生錯誤，請查看頁面下方的紅色錯誤訊息。";
+          
           setAiAnalysis({
             selectedPersonaId: localSummary.totalScore > 36 ? 'charmer' : 'neighbor',
-            personaExplanation: errorMsg,
+            personaExplanation: friendlyMsg,
             personaOverview: "AI 連線暫時中斷。",
             appearanceAnalysis: "建議您稍後再試。",
             socialAnalysis: "建議您稍後再試。",
@@ -471,19 +476,25 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <footer className="w-full text-center py-10 text-slate-400 text-[12px] px-6 border-t border-slate-100 mt-auto space-y-2">
+      <footer className="w-full text-center py-10 text-slate-400 text-[12px] px-6 border-t border-slate-100 mt-auto space-y-2 bg-slate-50">
         <p className="font-bold">© 男性形象教練 彭邦典 版權所有</p>
         <p>本測驗深度診斷由 AI 輔助生成，測驗結果僅供社交魅力提升參考。</p>
         
-        {/* DEBUG PANEL */}
-        <div className="inline-block mt-4 px-4 py-2 bg-slate-100 rounded text-xs font-mono text-left">
+        {/* DEBUG PANEL - 顯示錯誤訊息 */}
+        <div className="inline-block mt-4 px-4 py-3 bg-white border border-slate-200 rounded text-xs font-mono text-left shadow-sm max-w-full overflow-hidden">
            <p className={`font-bold ${keyStatus.startsWith('MISSING') ? 'text-red-600' : 'text-green-600'}`}>
-             API Key Status: {keyStatus}
+             API Key: {keyStatus}
            </p>
-           {keyStatus.startsWith('MISSING') && (
-             <p className="text-slate-500 mt-1">
-               Hint: In Vercel, set env var <b>VITE_API_KEY</b> or <b>API_KEY</b>. <br/>
-               Then click "Deployments" {'>'} "Redeploy".
+           {/* 紅色錯誤顯示區 */}
+           {lastError && (
+             <div className="mt-2 p-2 bg-red-50 text-red-600 border border-red-100 rounded break-all">
+               <strong>GOOGLE API ERROR:</strong> <br/>
+               {lastError}
+             </div>
+           )}
+           {lastError.includes('referer') && (
+             <p className="text-slate-500 mt-2 italic">
+               Hint: Your Google Key restricts domains. Add <b>https://love-test-*.vercel.app/*</b> to your Google Cloud Console "Website Restrictions".
              </p>
            )}
         </div>
