@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { QUESTIONS, OPTIONS, CATEGORY_INFO, PERSONAS, EXPERT_CONFIG, IMAGE_PROMPTS } from './constants';
@@ -11,7 +12,7 @@ interface AiReport {
   appearanceAnalysis: string; 
   socialAnalysis: string;
   interactionAnalysis: string;
-  mindsetAnalysis: string;
+  mindsetAnalysis: string; 
   coachGeneralAdvice: string; 
 }
 
@@ -50,7 +51,13 @@ const App: React.FC = () => {
     loadingRef.current[index] = true;
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY;
+      if (!apiKey || apiKey.includes('undefined')) {
+         console.warn("API Key missing, skipping image generation");
+         return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey: apiKey });
       const category = QUESTIONS[index].category;
       const basePrompt = IMAGE_PROMPTS[category] || `Professional photography related to ${QUESTIONS[index].text}`;
       
@@ -130,8 +137,28 @@ const App: React.FC = () => {
     if (step === 'diagnosing' && localSummary && !aiAnalysis && !isAiLoading) {
       const fetchAiAnalysis = async () => {
         setIsAiLoading(true);
+        
+        // 1. 檢查 API Key 是否存在
+        const apiKey = process.env.API_KEY;
+        // 如果是在 Vercel 環境但沒設定好，這裡通常會是 undefined
+        if (!apiKey || apiKey === "undefined" || apiKey.length < 10) {
+          console.error("Critical: No API Key found.");
+          setAiAnalysis({
+            selectedPersonaId: localSummary.totalScore > 36 ? 'charmer' : 'neighbor',
+            personaExplanation: "⚠️ 系統檢測不到 API 金鑰。請確認 Vercel 後台的 Environment Variables 是否已設定 'VITE_API_KEY'，並且設定完畢後是否有點擊 'Redeploy' 重新部署。",
+            personaOverview: "無法連線至 AI 大腦。",
+            appearanceAnalysis: "請檢查 Vercel 設定。",
+            socialAnalysis: "請檢查 Vercel 設定。",
+            interactionAnalysis: "請檢查 Vercel 設定。",
+            mindsetAnalysis: "請檢查 Vercel 設定。",
+            coachGeneralAdvice: "設定完成後請重新整理頁面。"
+          });
+          setIsAiLoading(false);
+          return;
+        }
+
         try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const ai = new GoogleGenAI({ apiKey: apiKey });
           const detailedData = QUESTIONS.map(q => ({
             question: q.text,
             category: q.category,
@@ -155,8 +182,9 @@ const App: React.FC = () => {
             語氣：有威嚴、專業、直白。
           `;
 
+          // 改用 Flash 模型，速度更快，失敗率更低
           const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview",
+            model: "gemini-3-flash-preview", 
             contents: [{ parts: [{ text: prompt }] }],
             config: {
               responseMimeType: "application/json",
@@ -182,15 +210,22 @@ const App: React.FC = () => {
           setAiAnalysis(json);
         } catch (e: any) {
           console.error("AI Analysis Error:", e);
+          let errorMsg = "由於網路連線狀況，我們根據目前分數為您進行基礎判定。";
+          
+          // 如果是權限錯誤，顯示更清楚的訊息
+          if (e.toString().includes('403') || e.toString().includes('key')) {
+             errorMsg = "API 金鑰無效或權限不足 (403)。請確認您的 API Key 是否正確且有足夠額度。";
+          }
+
           setAiAnalysis({
             selectedPersonaId: localSummary.totalScore > 36 ? 'charmer' : 'neighbor',
-            personaExplanation: "由於網路連線狀況，我們根據目前分數為您進行基礎判定。",
-            personaOverview: "目前的定位說明。",
-            appearanceAnalysis: "外在打理分析內容。",
-            socialAnalysis: "社群版面分析內容。",
-            interactionAnalysis: "互動推進分析內容。",
-            mindsetAnalysis: "核心心態分析內容。",
-            coachGeneralAdvice: "教練的總結建議。"
+            personaExplanation: errorMsg,
+            personaOverview: "AI 連線暫時中斷。",
+            appearanceAnalysis: "建議您稍後再試。",
+            socialAnalysis: "建議您稍後再試。",
+            interactionAnalysis: "建議您稍後再試。",
+            mindsetAnalysis: "建議您稍後再試。",
+            coachGeneralAdvice: "若持續發生，請檢查網路連線。"
           });
         } finally {
           setIsAiLoading(false);
@@ -426,6 +461,9 @@ const App: React.FC = () => {
       <footer className="w-full text-center py-10 text-slate-400 text-[12px] px-6 border-t border-slate-100 mt-auto">
         <p className="font-bold">© 男性形象教練 彭邦典 版權所有</p>
         <p>本測驗深度診斷由 AI 輔助生成，測驗結果僅供社交魅力提升參考。</p>
+        {(!process.env.API_KEY || process.env.API_KEY === "undefined") && (
+          <p className="text-red-500 font-bold mt-2">DEBUG: Vercel API Key not set</p>
+        )}
       </footer>
     </div>
   );
