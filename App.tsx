@@ -3,7 +3,6 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { QUESTIONS, OPTIONS, CATEGORY_INFO, PERSONAS, EXPERT_CONFIG, CATEGORY_IMAGES } from './constants';
 import { Category } from './types';
-// Import Chart.js to fix "Cannot find name 'Chart'" error
 import Chart from 'chart.js/auto';
 
 // 定義 AI 回傳的報告結構
@@ -32,7 +31,7 @@ const App: React.FC = () => {
   // Refs
   const aiFetchingRef = useRef(false);
   const radarChartRef = useRef<HTMLCanvasElement | null>(null);
-  const chartInstance = useRef<any>(null);
+  const chartInstance = useRef<Chart | null>(null);
 
   const handleStart = () => {
     setStep('quiz');
@@ -81,7 +80,14 @@ const App: React.FC = () => {
       let color = '#ef4444'; 
       if (score >= 9) { level = '綠燈'; color = '#22c55e'; }
       else if (score >= 5) { level = '黃燈'; color = '#f97316'; }
-      return { category: cat, score, level, color, description: CATEGORY_INFO[cat].description, suggestion: CATEGORY_INFO[cat].suggestions[level] };
+      return { 
+        category: cat, 
+        score, 
+        level, 
+        color, 
+        description: CATEGORY_INFO[cat].description, 
+        suggestion: CATEGORY_INFO[cat].suggestions[level] 
+      };
     });
 
     const totalScore = summary.reduce((acc, curr) => acc + curr.score, 0);
@@ -107,7 +113,6 @@ const App: React.FC = () => {
         };
 
         try {
-          // Create a new instance right before generating content to ensure the latest API key is used
           const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
           const detailedData = QUESTIONS.map(q => ({
             question: q.text,
@@ -145,7 +150,6 @@ const App: React.FC = () => {
             }
           });
 
-          // Access response.text directly (property access, not a function call)
           const jsonText = response.text;
           if (!jsonText) throw new Error("Empty response");
           setAiAnalysis(JSON.parse(jsonText.trim()));
@@ -164,9 +168,10 @@ const App: React.FC = () => {
   useEffect(() => {
     if (step === 'result' && localSummary && radarChartRef.current) {
       const ctx = radarChartRef.current.getContext('2d');
-      // Fix: Ensure Chart is available via import and check for context
       if (ctx) {
-        if (chartInstance.current) chartInstance.current.destroy();
+        if (chartInstance.current) {
+          chartInstance.current.destroy();
+        }
         
         chartInstance.current = new Chart(ctx, {
           type: 'radar',
@@ -182,13 +187,32 @@ const App: React.FC = () => {
             }]
           },
           options: {
-            scales: { r: { min: 0, max: 12, ticks: { display: false }, pointLabels: { font: { size: 14, weight: '700' } } } },
+            scales: { 
+              r: { 
+                min: 0, 
+                max: 12, 
+                ticks: { display: false }, 
+                pointLabels: { 
+                  font: { 
+                    size: 14, 
+                    weight: 'bold' // 修復：將 '700' 改為 'bold' 以解決 TS 類型錯誤
+                  } 
+                } 
+              } 
+            },
             plugins: { legend: { display: false } },
             maintainAspectRatio: false
           }
         });
       }
     }
+    // Cleanup function to destroy chart on unmount or step change
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+        chartInstance.current = null;
+      }
+    };
   }, [step, localSummary]);
 
   const handleAnswer = (score: number) => {
@@ -198,7 +222,6 @@ const App: React.FC = () => {
     setTimeout(() => {
       if (currentIdx < QUESTIONS.length - 1) {
         const nextIdx = currentIdx + 1;
-        // 如果進入新的分類，顯示章節介紹頁
         if (nextIdx % 4 === 0) {
           setIsIntroMode(true);
         }
@@ -219,7 +242,6 @@ const App: React.FC = () => {
       return;
     }
     
-    // 如果是該分類的第一題，回到該分類的介紹頁
     if (currentIdx % 4 === 0) setIsIntroMode(true);
     else setCurrentIdx(prev => prev - 1);
   };
