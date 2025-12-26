@@ -3,6 +3,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { QUESTIONS, OPTIONS, CATEGORY_INFO, PERSONAS, EXPERT_CONFIG, CATEGORY_IMAGES } from './constants';
 import { Category } from './types';
+// Import Chart.js to fix "Cannot find name 'Chart'" error
+import Chart from 'chart.js/auto';
 
 // 定義 AI 回傳的報告結構
 interface AiReport {
@@ -28,23 +30,9 @@ const App: React.FC = () => {
   const [fakeProgress, setFakeProgress] = useState(0);
 
   // Refs
-  const aiFetchingRef = useRef(false); // 防止重複呼叫 AI
+  const aiFetchingRef = useRef(false);
   const radarChartRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstance = useRef<any>(null);
-
-  // 用於 Debug 的狀態 (僅用於檢查金鑰)
-  const [keyStatus, setKeyStatus] = useState<string>('Checking...');
-  const [lastError, setLastError] = useState<string>('');
-
-  useEffect(() => {
-    // 檢查 API Key 狀態
-    const key = process.env.API_KEY;
-    if (!key || key === "undefined" || key === "") {
-      setKeyStatus("MISSING");
-    } else {
-      setKeyStatus(`Present (Len: ${key.length}, Starts: ${key.substring(0, 4)}...)`);
-    }
-  }, []);
 
   const handleStart = () => {
     setStep('quiz');
@@ -53,10 +41,10 @@ const App: React.FC = () => {
     setAnswers({});
     setAiAnalysis(null);
     setFakeProgress(0);
-    setLastError('');
     aiFetchingRef.current = false;
   };
 
+  // 模擬進度條動畫
   useEffect(() => {
     let timer: number;
     if (step === 'diagnosing') {
@@ -64,20 +52,21 @@ const App: React.FC = () => {
       timer = window.setInterval(() => {
         setFakeProgress(prev => {
           if (prev >= 98) return prev;
-          return prev + 0.8; 
+          return prev + 1.2; 
         });
       }, 100);
     }
     return () => clearInterval(timer);
   }, [step]);
 
+  // AI 結束後跳轉
   useEffect(() => {
     if (step === 'diagnosing' && aiAnalysis) {
       setFakeProgress(100);
       const timer = setTimeout(() => {
         setStep('result');
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      }, 300);
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [step, aiAnalysis]);
@@ -105,30 +94,21 @@ const App: React.FC = () => {
       const fetchAiAnalysis = async () => {
         aiFetchingRef.current = true;
         setIsAiLoading(true);
-        setLastError(''); 
 
         const fallbackAnalysis: AiReport = {
-          selectedPersonaId: localSummary.totalScore > 36 ? 'charmer' : 'neighbor',
-          personaExplanation: "⚠️ AI 連線忙碌中，這是根據您的分數生成的基礎報告。",
-          personaOverview: "您的魅力潛力巨大，建議重新整理頁面再次進行深度分析。",
-          appearanceAnalysis: "保持整潔，找出適合自己的風格是第一步。",
-          socialAnalysis: "社群媒體是您的名片，試著多展現生活感。",
-          interactionAnalysis: "主動一點，故事就會開始。",
-          mindsetAnalysis: "心態決定高度，保持自信。",
-          coachGeneralAdvice: "系統暫時無法連線至 AI 大腦，請檢查下方的錯誤訊息，或稍後再試。"
+          selectedPersonaId: localSummary.totalScore > 30 ? 'charmer' : 'neighbor',
+          personaExplanation: "目前的分析顯示，你在社交維度上有獨特的發展軌跡。這份建議是基於你的分數趨勢生成的基礎版點評。",
+          personaOverview: "你的魅力潛力正在覺醒，只需要正確的戰略引導。",
+          appearanceAnalysis: "保持整潔是基本，找到能突顯個人氣質的穿搭風格是關鍵。",
+          socialAnalysis: "社群是你的第二生命，多展現生活感強的照片能拉近距離。",
+          interactionAnalysis: "互動的關鍵在於推拉，試著在關心之餘展現一點點幽默感。",
+          mindsetAnalysis: "強大的心態是脫單的基石，每一次拒絕都是優化的機會。",
+          coachGeneralAdvice: "你的數據顯示出你具備社交基礎，但目前在某些環節還欠缺火侯。\n\n建議先從最有把握的環節開始優化，穩定感比短暫的高標更有吸引力。"
         };
 
-        const apiKey = process.env.API_KEY;
-        if (!apiKey || apiKey === "undefined" || apiKey.length < 10) {
-          setLastError("API Key MISSING or Invalid.");
-          setAiAnalysis(fallbackAnalysis);
-          setIsAiLoading(false);
-          return;
-        }
-
         try {
-          // Fix: Always use a named parameter when initializing GoogleGenAI
-          const ai = new GoogleGenAI({ apiKey: apiKey });
+          // Create a new instance right before generating content to ensure the latest API key is used
+          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
           const detailedData = QUESTIONS.map(q => ({
             question: q.text,
             category: q.category,
@@ -140,21 +120,13 @@ const App: React.FC = () => {
             分項分數：${JSON.stringify(localSummary.summary.map(s => ({ cat: s.category, score: s.score })))}
             原始作答：${JSON.stringify(detailedData)}`;
 
-          // Fix: Use gemini-3-pro-preview for complex reasoning tasks
-          // Fix: Move system instructions to systemInstruction parameter in config
-          // Fix: Use responseSchema to ensure valid JSON output
           const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview", 
+            model: "gemini-3-flash-preview", 
             contents: prompt,
             config: {
               systemInstruction: `你現在是專業形象教練「彭邦典」。這是一位 25-35 歲男性的「脫單力檢核」測驗結果深度報告。
-              任務指令：分析以上數據並回傳 JSON 格式報告。
-              人格原型 ID 必須從 [charmer, statue, hustler, neighbor, sage, pioneer] 中選取。
-              關於「coachGeneralAdvice」（教練總結）的撰寫風格：
-              1. 戰略大於執行：提供宏觀戰略與核心盲點。
-              2. 直擊問題：告訴他為什麼會卡住？
-              3. 語氣像有經驗且溫暖的兄長，平穩、堅定且有溫度。
-              4. 排版要求：請在不同觀點間使用 \\n 進行換行。`,
+              任務指令：分析數據並回傳 JSON。人格原型 ID 限於 [charmer, statue, hustler, neighbor, sage, pioneer]。
+              關於「coachGeneralAdvice」：宏觀戰略與核心盲點分析，語氣像溫暖的兄長，段落間請用 \\n 換行。`,
               responseMimeType: "application/json",
               responseSchema: {
                 type: Type.OBJECT,
@@ -173,22 +145,12 @@ const App: React.FC = () => {
             }
           });
 
-          // Fix: Access response.text property directly (not as a method)
+          // Access response.text directly (property access, not a function call)
           const jsonText = response.text;
-          if (!jsonText) throw new Error("Empty response from AI model");
-
-          let json;
-          try {
-             json = JSON.parse(jsonText.trim());
-          } catch (e) {
-             throw new Error("Invalid JSON format");
-          }
-
-          if (!json.selectedPersonaId) throw new Error("Missing fields in AI response");
-          setAiAnalysis(json);
+          if (!jsonText) throw new Error("Empty response");
+          setAiAnalysis(JSON.parse(jsonText.trim()));
         } catch (e: any) {
-          console.error("AI Analysis Error:", e);
-          setLastError(e.message || e.toString());
+          console.error("AI Error:", e);
           setAiAnalysis(fallbackAnalysis);
         } finally {
           setIsAiLoading(false);
@@ -198,33 +160,29 @@ const App: React.FC = () => {
     }
   }, [step, localSummary]);
 
+  // 雷達圖
   useEffect(() => {
     if (step === 'result' && localSummary && radarChartRef.current) {
       const ctx = radarChartRef.current.getContext('2d');
+      // Fix: Ensure Chart is available via import and check for context
       if (ctx) {
         if (chartInstance.current) chartInstance.current.destroy();
-        // @ts-ignore
+        
         chartInstance.current = new Chart(ctx, {
           type: 'radar',
           data: {
             labels: localSummary.summary.map(r => r.category),
             datasets: [{
-              label: '魅力值',
+              label: '能力分佈',
               data: localSummary.summary.map(r => r.score),
               backgroundColor: 'rgba(59, 130, 246, 0.2)',
               borderColor: 'rgba(59, 130, 246, 1)',
               borderWidth: 3,
               pointBackgroundColor: 'rgba(59, 130, 246, 1)',
-              pointBorderColor: '#fff',
             }]
           },
           options: {
-            scales: { 
-              r: { 
-                min: 0, max: 12, ticks: { display: false, stepSize: 3 },
-                pointLabels: { font: { size: 14, weight: '700' }, color: '#64748b' }
-              } 
-            },
+            scales: { r: { min: 0, max: 12, ticks: { display: false }, pointLabels: { font: { size: 14, weight: '700' } } } },
             plugins: { legend: { display: false } },
             maintainAspectRatio: false
           }
@@ -233,217 +191,191 @@ const App: React.FC = () => {
     }
   }, [step, localSummary]);
 
-  const handleAnswer = (val: number) => {
-    setAnswers(prev => ({ ...prev, [QUESTIONS[currentIdx].id]: val }));
-    // 點選選項後自動進入下一題
+  const handleAnswer = (score: number) => {
+    setAnswers(prev => ({ ...prev, [QUESTIONS[currentIdx].id]: score }));
+    
+    // 視覺回饋與自動進度
     setTimeout(() => {
-      nextStep();
-    }, 150);
-  };
-  
-  const nextStep = () => {
-    if (isIntroMode) { setIsIntroMode(false); return; }
-    if (currentIdx < QUESTIONS.length - 1) {
-      const nextIdx = currentIdx + 1;
-      if (nextIdx % 4 === 0) setIsIntroMode(true);
-      setCurrentIdx(nextIdx);
-    } else {
-      setStep('diagnosing');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+      if (currentIdx < QUESTIONS.length - 1) {
+        const nextIdx = currentIdx + 1;
+        // 如果進入新的分類，顯示章節介紹頁
+        if (nextIdx % 4 === 0) {
+          setIsIntroMode(true);
+        }
+        setCurrentIdx(nextIdx);
+      } else {
+        setStep('diagnosing');
+      }
+    }, 200);
   };
 
   const prevStep = () => {
     if (isIntroMode) {
-      if (currentIdx > 0) { setIsIntroMode(false); setCurrentIdx(currentIdx - 1); }
-      else setStep('hero');
+      if (currentIdx === 0) setStep('hero');
+      else {
+        setIsIntroMode(false);
+        setCurrentIdx(currentIdx - 1);
+      }
       return;
     }
+    
+    // 如果是該分類的第一題，回到該分類的介紹頁
     if (currentIdx % 4 === 0) setIsIntroMode(true);
     else setCurrentIdx(prev => prev - 1);
   };
 
-  const activePersona = useMemo(() => {
-    if (!aiAnalysis) return PERSONAS[5];
-    const normalizedId = aiAnalysis.selectedPersonaId.toLowerCase().trim();
-    const found = PERSONAS.find(p => p.id === normalizedId);
-    return found || PERSONAS[5];
-  }, [aiAnalysis]);
+  const currentQuestion = QUESTIONS[currentIdx];
+  const progressPercentage = Math.round(((currentIdx) / QUESTIONS.length) * 100);
 
-  const getAiAnalysisForCategory = (category: Category) => {
-    if (!aiAnalysis) return "分析中...";
-    switch(category) {
-      case '形象外表': return aiAnalysis.appearanceAnalysis;
-      case '社群形象': return aiAnalysis.socialAnalysis;
-      case '行動與互動': return aiAnalysis.interactionAnalysis;
-      case '心態與習慣': return aiAnalysis.mindsetAnalysis;
-      default: return "";
-    }
-  };
+  if (step === 'hero') {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+        <div className="relative mb-12 animate-float">
+          <img src="https://d1yei2z3i6k35z.cloudfront.net/2452254/694caa69f0eb6_main.svg" className="w-64 h-64 mx-auto" alt="Logo" />
+        </div>
+        <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight leading-tight">男士脫單力<br/><span className="text-blue-500">深度診斷</span></h1>
+        <p className="text-slate-400 text-lg md:text-2xl max-w-xl mb-12 font-medium">
+          透過 AI 深度比對你的社交數據<br/>精準找出你在戀愛市場中的「定位盲點」
+        </p>
+        <button onClick={handleStart} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-6 px-16 rounded-full text-2xl transition-all transform hover:scale-105 shadow-2xl shadow-blue-900/40">
+          立即啟動分析
+        </button>
+      </div>
+    );
+  }
+
+  if (step === 'quiz') {
+    return (
+      <div className="min-h-screen bg-white flex flex-col animate-fade-in">
+        <div className="w-full bg-slate-100 h-2">
+          <div className="bg-blue-600 h-2 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
+        </div>
+        
+        <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-2xl mx-auto w-full">
+          {isIntroMode ? (
+            <div className="text-center space-y-8 animate-fade-in">
+              <div className="relative w-full aspect-video rounded-3xl overflow-hidden shadow-2xl">
+                 <img src={CATEGORY_IMAGES[currentQuestion.category]} className="w-full h-full object-cover" alt="category" />
+                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <h2 className="text-4xl font-black text-white">{currentQuestion.category}</h2>
+                 </div>
+              </div>
+              <p className="text-xl text-slate-500 leading-relaxed font-bold">{CATEGORY_INFO[currentQuestion.category].description}</p>
+              <div className="flex flex-col space-y-4">
+                <button onClick={() => setIsIntroMode(false)} className="bg-slate-900 text-white font-black py-5 rounded-2xl text-xl shadow-xl">開始本章節</button>
+                <button onClick={prevStep} className="text-slate-400 font-bold hover:text-slate-600">回到上一題</button>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full space-y-8 animate-fade-in">
+              <div className="text-center">
+                <span className="text-blue-600 font-black tracking-widest uppercase text-sm">{currentQuestion.category}</span>
+                <h2 className="text-2xl md:text-3xl font-black mt-4 leading-snug">{currentQuestion.text}</h2>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4">
+                {OPTIONS.map(opt => (
+                  <button key={opt.value} onClick={() => handleAnswer(opt.value)} 
+                    className={`w-full text-left p-6 rounded-2xl border-2 transition-all flex items-center group ${answers[currentQuestion.id] === opt.value ? 'border-blue-600 bg-blue-50' : 'border-slate-100 hover:border-blue-300 hover:bg-slate-50'}`}>
+                    <div className="w-6 h-6 rounded-full border-2 border-slate-200 mr-4 flex items-center justify-center group-hover:border-blue-400">
+                      <div className={`w-3 h-3 rounded-full bg-blue-600 transition-transform ${answers[currentQuestion.id] === opt.value ? 'scale-100' : 'scale-0'}`}></div>
+                    </div>
+                    <span className="text-lg font-black text-slate-700">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={prevStep} className="w-full py-4 text-slate-400 font-bold hover:text-slate-600 transition-colors">回到上一題</button>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  if (step === 'diagnosing') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white text-center">
+        <div className="relative mb-10">
+          <div className="w-32 h-32 border-8 border-slate-800 border-t-blue-500 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center font-black text-2xl">{Math.round(fakeProgress)}%</div>
+        </div>
+        <h2 className="text-3xl font-black mb-4">AI 正在計算你的魅力原型...</h2>
+        <div className="space-y-2 text-slate-400 font-medium">
+          <p className={fakeProgress > 20 ? 'text-blue-400' : ''}>● 分析 16 項行為指標中</p>
+          <p className={fakeProgress > 50 ? 'text-blue-400' : ''}>● 比對 5,000+ 社交成功案例</p>
+          <p className={fakeProgress > 80 ? 'text-blue-400' : ''}>● 彭邦典教練生成診斷建議</p>
+        </div>
+      </div>
+    );
+  }
+
+  const persona = PERSONAS.find(p => p.id === aiAnalysis?.selectedPersonaId) || PERSONAS[5];
 
   return (
-    <div className="min-h-screen max-w-2xl mx-auto flex flex-col items-center p-4 md:p-8">
-      {step === 'hero' && (
-        <div className="flex-1 flex flex-col justify-center w-full animate-fade-in py-10 space-y-12">
-          <div className="text-center space-y-4">
-            <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-tight">脫單力檢核分析</h1>
-            <p className="text-2xl text-slate-500 font-bold">快速找出你的脫單阻礙</p>
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 animate-fade-in">
+      <div className="bg-white shadow-2xl rounded-b-[4rem] overflow-hidden">
+        <div className="relative w-full aspect-square md:aspect-[21/9]">
+          <img src={persona.imageUrl} className="w-full h-full object-cover" alt={persona.title} />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-8 md:p-12">
+            <span className="text-blue-400 font-black tracking-widest mb-2 uppercase">Your Persona Type</span>
+            <h1 className="text-4xl md:text-6xl font-black text-white mb-2">{persona.title}</h1>
+            <p className="text-xl md:text-2xl text-white/80 font-medium italic">{persona.subtitle}</p>
           </div>
-          <div className="relative w-full aspect-[4/3] flex items-center justify-center animate-float">
-             <img src="https://d1yei2z3i6k35z.cloudfront.net/2452254/694caa69f0eb6_main.svg" className="w-full h-full object-contain" />
-          </div>
-          <div className="grid grid-cols-1 gap-6 px-4">
-            <div className="flex items-center space-x-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 transition-all hover:shadow-md">
-              <div className="text-6xl">✨</div>
-              <div><h3 className="text-xl font-black text-slate-800">魅力原型</h3><p className="text-slate-400 font-medium">分析你在戀愛市場中的真實定位</p></div>
-            </div>
-            <div className="flex items-center space-x-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 transition-all hover:shadow-md">
-              <div className="text-6xl">📊</div>
-              <div><h3 className="text-xl font-black text-slate-800">多維雷達</h3><p className="text-slate-400 font-medium">將外型、社交、心態數據化呈現</p></div>
-            </div>
-            <div className="flex items-center space-x-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 transition-all hover:shadow-md">
-              <div className="text-6xl">🌱</div>
-              <div><h3 className="text-xl font-black text-slate-800">進化指南</h3><p className="text-slate-400 font-medium">獲得個人深度報告與建議</p></div>
-            </div>
-          </div>
-          <button onClick={handleStart} className="bg-slate-900 hover:bg-black text-white font-black py-7 px-24 rounded-[2.5rem] text-2xl shadow-2xl transition transform active:scale-95 text-center">啟動深度分析</button>
         </div>
-      )}
-
-      {step === 'quiz' && (
-        <div className="w-full space-y-6 py-4 animate-fade-in">
-          <div className="w-full px-2">
-            <div className="flex justify-between text-[10px] text-slate-400 mb-2 font-black uppercase tracking-widest">
-              <span>{QUESTIONS[currentIdx].category}</span>
-              <span>Question {currentIdx + 1} / {QUESTIONS.length}</span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-600 transition-all duration-500 ease-out" style={{ width: `${((currentIdx + (isIntroMode ? 0 : 1)) / QUESTIONS.length) * 100}%` }}></div>
-            </div>
+        <div className="p-8 md:p-12 space-y-8">
+          <div className="flex flex-wrap gap-3">
+            {persona.tags.map(tag => <span key={tag} className="bg-slate-100 text-slate-800 px-5 py-2 rounded-full text-lg font-black border border-slate-200"># {tag}</span>)}
           </div>
+          <div className="p-6 bg-blue-50 rounded-3xl border border-blue-100">
+            <h3 className="text-blue-600 font-black text-xl mb-3">人格深度分析</h3>
+            <p className="text-slate-700 text-lg leading-relaxed font-bold">{aiAnalysis?.personaExplanation}</p>
+          </div>
+        </div>
+      </div>
 
-          {isIntroMode ? (
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 text-center space-y-10">
-              <div>
-                <h2 className="text-4xl font-black text-slate-800 mb-4">{QUESTIONS[currentIdx].category}</h2>
-                <p className="text-xl text-slate-500 leading-relaxed">{CATEGORY_INFO[QUESTIONS[currentIdx].category].description}</p>
+      <div className="max-w-4xl mx-auto px-6 mt-12 space-y-12">
+        <section className="bg-white p-8 md:p-12 rounded-[3rem] shadow-xl text-center">
+          <h2 className="text-3xl font-black mb-8 text-slate-800">四大維度數據分析</h2>
+          <div className="h-80 w-full"><canvas ref={radarChartRef}></canvas></div>
+        </section>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {localSummary?.summary.map(s => (
+            <div key={s.category} className="bg-white p-8 rounded-[2.5rem] shadow-lg border-l-8 flex flex-col space-y-4" style={{ borderLeftColor: s.color }}>
+              <div className="flex justify-between items-center">
+                <h4 className="text-xl font-black">{s.category}</h4>
+                <span className="px-4 py-1 rounded-full text-sm font-black" style={{ backgroundColor: `${s.color}20`, color: s.color }}>{s.level}</span>
               </div>
-              <div className="flex flex-col space-y-3">
-                <button onClick={nextStep} className="w-full bg-slate-900 text-white font-bold py-5 rounded-2xl text-lg shadow-lg transition transform active:scale-95">進入測驗</button>
-                <button onClick={prevStep} className="w-full bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl hover:bg-slate-200 transition-colors">回到上一題</button>
-              </div>
+              <p className="text-slate-600 font-bold leading-relaxed">{s.category === '形象外表' ? aiAnalysis?.appearanceAnalysis : s.category === '社群形象' ? aiAnalysis?.socialAnalysis : s.category === '行動與互動' ? aiAnalysis?.interactionAnalysis : aiAnalysis?.mindsetAnalysis}</p>
             </div>
-          ) : (
+          ))}
+        </div>
+
+        <section className="bg-slate-900 rounded-[3.5rem] overflow-hidden shadow-2xl border border-slate-800">
+          <img src={EXPERT_CONFIG.imageUrl} className="w-full aspect-video object-cover" alt="Coach" />
+          <div className="p-10 md:p-14 space-y-8">
+            <div className="flex items-center space-x-4">
+              <div className="bg-amber-400 p-1 rounded-lg text-slate-900 font-black px-3 py-1 uppercase text-sm tracking-tighter">Strategic Insight</div>
+              <h3 className="text-2xl font-black text-white">教練專屬戰略建議</h3>
+            </div>
             <div className="space-y-6">
-              <div className="relative w-full aspect-video rounded-[2.5rem] overflow-hidden bg-slate-50 border border-slate-100 shadow-inner group">
-                 <img src={CATEGORY_IMAGES[QUESTIONS[currentIdx].category]} alt={QUESTIONS[currentIdx].category} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none"></div>
-              </div>
-              <div className="bg-white p-6 md:p-10 rounded-[2.5rem] shadow-xl border border-slate-100 space-y-8">
-                <h2 className="text-xl md:text-2xl font-black text-slate-800 text-center leading-relaxed px-4">{QUESTIONS[currentIdx].text}</h2>
-                <div className="space-y-3">
-                  {OPTIONS.map(opt => (
-                    <button key={opt.value} onClick={() => handleAnswer(opt.value)} className={`w-full p-5 rounded-2xl border-2 transition-all ${answers[QUESTIONS[currentIdx].id] === opt.value ? 'border-blue-600 bg-blue-50/50 shadow-md' : 'border-slate-50 bg-slate-50/50 hover:bg-slate-100'}`}>
-                      <span className="font-bold text-base md:text-lg text-slate-700">{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center space-x-4 px-2">
-                <button onClick={prevStep} className="flex-1 py-4 rounded-2xl font-bold bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">回到上一題</button>
-              </div>
+              {aiAnalysis?.coachGeneralAdvice.split('\n').filter(l => l.trim()).map((line, i) => (
+                <p key={i} className="text-lg md:text-xl text-slate-300 leading-relaxed font-medium text-justify">{line}</p>
+              ))}
             </div>
-          )}
-        </div>
-      )}
-
-      {step === 'diagnosing' && (
-        <div className="flex-1 flex flex-col items-center justify-center w-full min-h-[60vh] space-y-12 animate-fade-in text-center px-4">
-          <div className="relative">
-            <div className="w-32 h-32 border-8 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center text-2xl font-black text-slate-800">{Math.floor(fakeProgress)}%</div>
-          </div>
-          <div className="space-y-4">
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">AI 診斷引擎正在啟動</h2>
-            <div className="flex flex-col space-y-2 text-slate-500 font-bold">
-              <span className={fakeProgress > 15 ? 'text-blue-600 opacity-100' : 'opacity-40'}>● 正在分析你的作答細節...</span>
-              <span className={fakeProgress > 45 ? 'text-blue-600 opacity-100' : 'opacity-40'}>● 比對 10,000+ 社交成功案例...</span>
-              <span className={fakeProgress > 80 ? 'text-blue-600 opacity-100' : 'opacity-40'}>● 彭邦典教練正在生成專屬建議...</span>
+            <div className="pt-6">
+              <button onClick={() => window.open('https://www.menspalais.com', '_blank')} 
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-3xl text-2xl shadow-xl transition-all transform active:scale-95">
+                {EXPERT_CONFIG.ctaButtonText}
+              </button>
             </div>
           </div>
-          <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-blue-600 transition-all duration-300 ease-out" style={{ width: `${fakeProgress}%` }}></div></div>
-        </div>
-      )}
+        </section>
 
-      {step === 'result' && localSummary && aiAnalysis && (
-        <div className="w-full space-y-10 py-8 animate-fade-in px-2">
-          <div className="bg-white rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100">
-            <div className="relative w-full aspect-[3/2] bg-gray-50 flex items-center justify-center overflow-hidden">
-              <img src={activePersona.imageUrl} alt={activePersona.title} className="w-full h-full object-cover" />
-              <div className="absolute bottom-0 left-0 p-8 text-white bg-gradient-to-t from-black/90 w-full">
-                <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase mb-2 inline-block">Persona</span>
-                <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-2">{activePersona.title}</h2>
-                <p className="text-lg md:text-xl font-medium text-white/90 italic">{aiAnalysis.personaOverview || activePersona.subtitle}</p>
-              </div>
-            </div>
-            <div className="p-8 md:p-10 space-y-8">
-              <div className="flex flex-wrap gap-3">{activePersona.tags.map(tag => (<span key={tag} className="px-6 py-3 bg-slate-100 text-slate-800 rounded-full text-lg font-black border border-slate-200"># {tag}</span>))}</div>
-              <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100">
-                 <h5 className="text-blue-600 font-black text-xl uppercase tracking-widest mb-3">人格診斷分析</h5>
-                 <p className="text-slate-800 text-lg md:text-xl leading-relaxed font-bold">{aiAnalysis.personaExplanation}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 md:p-10 rounded-[3rem] shadow-xl border border-slate-50 text-center">
-            <div className="text-3xl md:text-4xl font-black text-slate-800 mb-8">總體魅力：<span className="text-blue-600">{localSummary.totalScore}</span> <span className="text-slate-300 text-lg">/ 48</span></div>
-            <div className="h-[20rem] md:h-[24rem] mb-6"><canvas ref={radarChartRef}></canvas></div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {localSummary.summary.map((item) => (
-              <div key={item.category} className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-slate-100 flex flex-col space-y-4 relative overflow-hidden group">
-                 <div className={`absolute top-0 left-0 w-2 h-full ${item.level === '綠燈' ? 'bg-green-500' : item.level === '黃燈' ? 'bg-orange-400' : 'bg-red-500'}`}></div>
-                 <div className="flex items-center justify-between pl-4">
-                    <h4 className="text-xl font-black text-slate-800">{item.category}</h4>
-                    <span className={`px-4 py-1.5 rounded-full text-sm font-black ${item.level === '綠燈' ? 'bg-green-100 text-green-700' : item.level === '黃燈' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>{item.level} ({item.score}分)</span>
-                 </div>
-                 <p className="text-slate-600 leading-relaxed pl-4 text-justify font-medium">{getAiAnalysisForCategory(item.category)}</p>
-              </div>
-            ))}
-          </div>
-
-          {activePersona.id === 'charmer' ? (
-            <div className="bg-gradient-to-br from-slate-900 to-black rounded-[3.5rem] shadow-2xl p-10 md:p-14 text-center space-y-8 border border-slate-800">
-              <div className="text-6xl md:text-8xl">🏆</div>
-              <h4 className="text-3xl md:text-4xl font-black text-white">你已是頂級魅力家</h4>
-              <p className="text-slate-300 text-xl md:text-2xl font-bold">彭教練對你唯一的建議是：好好善用這份天賦。祝你一帆風順！</p>
-            </div>
-          ) : (
-            <div className="rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col bg-white">
-              <div className="w-full relative"><img src={EXPERT_CONFIG.imageUrl} alt="Expert Coach" className="w-full h-auto block object-cover" /></div>
-              <div className="bg-slate-900 p-8 md:p-12 space-y-8 flex-1">
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-3"><span className="text-3xl">💡</span><h3 className="text-2xl font-black text-amber-400 tracking-tight">教練總結</h3></div>
-                  <div className="space-y-4">{aiAnalysis.coachGeneralAdvice.split('\n').filter(line => line.trim() !== '').map((line, idx) => (<p key={idx} className="text-lg md:text-xl leading-relaxed font-medium text-slate-200 opacity-95 text-justify">{line}</p>))}</div>
-                  <div className="w-full h-px bg-slate-700 my-4"></div>
-                  <p className="text-lg md:text-xl leading-relaxed font-bold text-white text-justify">{EXPERT_CONFIG.description}</p>
-                </div>
-                <button onClick={() => window.open('https://www.menspalais.com', '_blank')} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-6 rounded-[2rem] text-xl md:text-2xl shadow-xl shadow-blue-900/50 flex items-center justify-center space-x-3 transition transform active:scale-95 mt-4">
-                  <span>{EXPERT_CONFIG.ctaButtonText}</span>
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
-                </button>
-              </div>
-            </div>
-          )}
-          <div className="text-center pb-8"><button onClick={handleStart} className="text-slate-400 font-black uppercase tracking-widest hover:text-slate-600 transition-colors">重新進行測試</button></div>
-        </div>
-      )}
-
-      <footer className="w-full text-center py-10 text-slate-400 text-[12px] px-6 border-t border-slate-100 mt-auto space-y-2 bg-slate-50">
-        <p className="font-bold">© 男性形象教練 彭邦典 版權所有</p>
-        <p>本測驗深度診斷由 AI 輔助生成，測驗結果僅供社交魅力提升參考。</p>
-      </footer>
+        <footer className="text-center pt-10 pb-20">
+          <button onClick={handleStart} className="text-slate-400 font-black uppercase tracking-widest hover:text-slate-600 transition-colors">重新進行測試</button>
+        </footer>
+      </div>
     </div>
   );
 };
